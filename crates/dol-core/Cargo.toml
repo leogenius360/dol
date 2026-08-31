@@ -1,0 +1,20 @@
+[package]
+name = "dol-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Core semantic language and local model for DOL"
+
+[dependencies]
+blake3 = "1.8"
+rust_decimal = { version = "1.37", default-features = false, features = ["std"] }
+time = { version = "0.3", features = ["std"] }
+uuid = { version = "1.18", features = ["std"] }
+
+[lints]
+workspace = true
+
+[[bench]]
+name = "semantic_hot_paths"
+harness = false

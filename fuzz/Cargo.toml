@@ -1,0 +1,47 @@
+[package]
+name = "dol-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+rust-version = "1.98"
+license = "BSD-3-Clause"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+dol-core = { path = "../crates/dol-core", version = "0.1.0" }
+dol-wire = { path = "../crates/dol-wire", version = "0.1.0" }
+libfuzzer-sys = "0.4"
+
+[[bin]]
+name = "model_definition"
+path = "fuzz_targets/model_definition.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "type_definition"
+path = "fuzz_targets/type_definition.rs"
+test = false
+doc = false
+bench = false
+
+# Keep cargo-fuzz isolated from the repository workspace.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "expression_semantics"
+path = "fuzz_targets/expression_semantics.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wire_decode"
+path = "fuzz_targets/wire_decode.rs"
+test = false
+doc = false
+bench = false

@@ -1,0 +1,13 @@
+[package]
+name = "dol-engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Execution engine SPI, capabilities, placement, and streams for DOL"
+
+[dependencies]
+dol-core = { path = "../dol-core", version = "0.1.0" }
+
+[lints]
+workspace = true

@@ -1,0 +1,24 @@
+[package]
+name = "dol-jsonl"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "bounded incremental JSON Lines engine adapter for DOL"
+
+[dependencies]
+dol-core = { path = "../../crates/dol-core", version = "0.1.0" }
+dol-engine = { path = "../../crates/dol-engine", version = "0.1.0" }
+rust_decimal = { version = "1.37", default-features = false, features = ["std"] }
+serde = "1.0"
+serde_json = "1.0"
+time = { version = "0.3", features = ["std", "parsing"] }
+uuid = { version = "1.18", features = ["std"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+dol = { path = "../.." }
+dol-conformance = { path = "../../crates/dol-conformance", version = "0.1.0" }
+dol-memory = { path = "../memory", version = "0.1.0" }

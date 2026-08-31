@@ -1,0 +1,14 @@
+[package]
+name = "dol-conformance"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Reusable semantic conformance harness for DOL engines"
+
+[dependencies]
+dol-core = { path = "../dol-core", version = "0.1.0" }
+dol-engine = { path = "../dol-engine", version = "0.1.0" }
+
+[lints]
+workspace = true

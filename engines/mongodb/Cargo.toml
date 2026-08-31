@@ -1,0 +1,20 @@
+[package]
+name = "dol-mongodb"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "mongodb engine adapter for DOL"
+
+[dependencies]
+dol-core = { path = "../../crates/dol-core", version = "0.1.0" }
+dol-engine = { path = "../../crates/dol-engine", version = "0.1.0" }
+mongodb = { version = "3.8", features = ["sync"] }
+
+[dev-dependencies]
+dol = { path = "../..", version = "0.1.0" }
+dol-conformance = { path = "../../crates/dol-conformance", version = "0.1.0" }
+dol-memory = { path = "../memory", version = "0.1.0" }
+
+[lints]
+workspace = true

@@ -1,0 +1,26 @@
+[package]
+name = "dol-bench"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Reproducible repository-level benchmarks for DOL"
+publish = false
+
+[dependencies]
+dol = { path = "../..", version = "0.1.0", features = ["derive"] }
+dol-core = { path = "../../crates/dol-core", version = "0.1.0" }
+dol-engine = { path = "../../crates/dol-engine", version = "0.1.0" }
+dol-memory = { path = "../../engines/memory", version = "0.1.0" }
+dol-migrate = { path = "../../crates/dol-migrate", version = "0.1.0" }
+dol-ml = { path = "../../crates/dol-ml", version = "0.1.0" }
+dol-mongodb = { path = "../../engines/mongodb", version = "0.1.0" }
+dol-postgres = { path = "../../engines/postgres", version = "0.1.0" }
+dol-wire = { path = "../../crates/dol-wire", version = "0.1.0" }
+
+[[bench]]
+name = "roadmap"
+harness = false
+
+[lints]
+workspace = true

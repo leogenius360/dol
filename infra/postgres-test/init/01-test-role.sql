@@ -1,0 +1,2 @@
+CREATE ROLE dol_test LOGIN PASSWORD 'dol-test-only';
+GRANT CONNECT, CREATE ON DATABASE dol TO dol_test;

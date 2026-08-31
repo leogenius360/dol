@@ -1,0 +1,56 @@
+[package]
+name = "dol"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Rust-native Data Operating Language facade"
+
+[workspace]
+resolver = "3"
+members = [
+    "crates/dol-core",
+    "crates/dol-macros",
+    "crates/dol-engine",
+    "crates/dol-migrate",
+    "crates/dol-wire",
+    "crates/dol-ml",
+    "crates/dol-conformance",
+    "engines/memory",
+    "engines/postgres",
+    "engines/mongodb",
+    "engines/jsonl",
+    "tools/benchmarks",
+    "tools/xtask",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "BSD-3-Clause"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[features]
+default = ["derive"]
+derive = ["dep:dol-macros"]
+engine = ["dep:dol-engine"]
+migrate = ["engine", "dep:dol-migrate"]
+wire = ["dep:dol-wire"]
+ml = ["engine", "dep:dol-ml"]
+
+[dependencies]
+dol-core = { path = "crates/dol-core", version = "0.1.0" }
+dol-macros = { path = "crates/dol-macros", version = "0.1.0", optional = true }
+dol-engine = { path = "crates/dol-engine", version = "0.1.0", optional = true }
+dol-migrate = { path = "crates/dol-migrate", version = "0.1.0", optional = true }
+dol-wire = { path = "crates/dol-wire", version = "0.1.0", optional = true }
+dol-ml = { path = "crates/dol-ml", version = "0.1.0", optional = true }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+time = { version = "0.3", features = ["std"] }

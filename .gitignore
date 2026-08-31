@@ -1,0 +1,11 @@
+/target/
+/fuzz/target/
+**/*.rs.bk
+.DS_Store
+.idea/
+.vscode/
+*.log
+/fuzz/artifacts/
+/fuzz/corpus/*
+!/fuzz/corpus/.gitkeep
+/.dol/
