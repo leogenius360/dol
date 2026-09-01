@@ -1,13 +1,16 @@
-//! Adaptive, dependency-free benchmarks covering the baseline and completed roadmap.
+//! User-attested historical equivalents and decomposed modern workloads.
 
 use std::hint::black_box;
 use std::mem::size_of;
-use std::time::{Duration, Instant};
 
 use dol::prelude::*;
+use dol_bench::{Config, Runner, Suite, help};
 use dol_core::expr::EvalContext;
 use dol_core::model::{ModelBuilder, ModelDef};
-use dol_engine::{ExecutionOptions, PlacementPolicy, collect_stream};
+use dol_engine::{
+    Engine, ExecutionOptions, ExplainPlan, PlacementPolicy, analyze_engine_placement,
+    collect_stream,
+};
 use dol_memory::MemoryEngine;
 use dol_migrate::{
     CatalogEntity, CatalogField, CatalogIndex, CatalogRevision, CatalogScope, CatalogSnapshot,
@@ -22,17 +25,6 @@ use dol_postgres::{
 };
 use dol_wire::{DecodeLimits, decode_type_def, encode_type_def};
 
-const SAMPLE_COUNT: usize = 9;
-const CALIBRATION_FLOOR: Duration = Duration::from_millis(20);
-const TARGET_SAMPLE: Duration = Duration::from_millis(150);
-const MAX_ITERATIONS: u64 = 50_000_000;
-
-const BASELINE_EXPRESSION_CONSTRUCTION: f64 = 310_598.0;
-const BASELINE_EXPRESSION_EVALUATION: f64 = 7_950_175.0;
-const BASELINE_CLONE_AND_FINGERPRINTS: f64 = 49_481.0;
-const BASELINE_POSTGRES_PLANNING: f64 = 68_660.0;
-const BASELINE_RUNTIME_MODEL: f64 = 97_468.0;
-
 #[derive(Clone, Debug, PartialEq, dol::Model)]
 #[dol(key = "bench/account", name = "BenchAccount")]
 struct BenchAccount {
@@ -44,50 +36,216 @@ struct BenchAccount {
     nickname: Option<String>,
 }
 
-fn main() {
-    println!("DOL roadmap benchmark suite");
-    println!(
-        "adaptive median: {SAMPLE_COUNT} samples, target {:.0} ms/sample",
-        TARGET_SAMPLE.as_secs_f64() * 1_000.0
-    );
-    println!("baseline: Windows, 2026-08-23, Rust 1.98.0, Cargo bench profile");
-
-    baseline_benchmarks();
-    roadmap_benchmarks();
-    representation_measurements();
+#[derive(Clone, Debug, PartialEq, dol::Model)]
+#[dol(key = "historical/benchmark_rows", name = "benchmark_rows")]
+struct BenchmarkRow {
+    #[dol(identity)]
+    id: u64,
+    value: i32,
+    active: bool,
+    label: String,
 }
 
-fn baseline_benchmarks() {
-    println!("\nReconstructed baseline-label workloads");
-    println!("reference deltas are directional: the original fixture source is unavailable");
+fn main() {
+    if std::env::args().any(|argument| argument == "--help" || argument == "-h") {
+        println!("{}", help());
+        return;
+    }
+    let config = Config::parse_env().unwrap_or_else(|error| {
+        eprintln!("{error}");
+        std::process::exit(2);
+    });
+    let mut runner = Runner::new(config);
+    if runner.suite_enabled(Suite::Historical) {
+        historical_benchmarks(&mut runner);
+        representation_measurements(&mut runner);
+    }
+    if runner.suite_enabled(Suite::Modern) {
+        modern_benchmarks(&mut runner);
+    }
+    runner.finish().expect("benchmark report remains writable");
+}
 
-    measure(
-        "Expression construction",
-        Some(BASELINE_EXPRESSION_CONSTRUCTION),
+fn historical_benchmarks(runner: &mut Runner) {
+    runner.measure(
+        Suite::Historical,
+        "Expression construction (historical fixture, current-API equivalent)",
+        100_000,
+        historical_expression,
+    );
+
+    let model = BenchmarkRow::model_def().expect("historical benchmark model remains valid");
+    let prepared = historical_expression()
+        .prepare_for(model)
+        .expect("historical expression remains valid");
+    let row = historical_row();
+    let context = EvalContext::single(&row);
+    assert_eq!(
+        prepared
+            .evaluate_truth(&context)
+            .expect("historical truth result remains valid"),
+        Truth::True
+    );
+    runner.measure(
+        Suite::Historical,
+        "Prepared expression evaluation (historical fixture, current-API equivalent)",
+        1_000_000,
+        || {
+            prepared
+                .evaluate_truth(black_box(&context))
+                .expect("historical evaluation remains valid")
+        },
+    );
+
+    let expression = historical_expression();
+    let pipeline = historical_pipeline();
+    runner.measure(
+        Suite::Historical,
+        "Expression/pipeline clone plus fingerprints (current-API equivalent)",
+        100_000,
+        || {
+            let expression = black_box(&expression).clone();
+            let pipeline = black_box(&pipeline).clone();
+            (
+                expression
+                    .fingerprint()
+                    .expect("historical expression remains valid"),
+                pipeline
+                    .fingerprint()
+                    .expect("historical pipeline remains valid"),
+            )
+        },
+    );
+
+    let historical_plan = pipeline
+        .logical_plan()
+        .expect("historical pipeline lowering remains valid");
+    let historical_postgres = postgres_runtime_engine(historical_postgres_catalog());
+    let capability = historical_postgres
+        .explain_plan(&historical_plan, PlacementPolicy::RemoteOnly)
+        .map_or_else(
+            |diagnostic| format!("unsupported by the current exact boundary: {diagnostic}"),
+            |_| "unexpectedly supported; review the exact-compiler boundary".into(),
+        );
+    runner.note(
+        Suite::Historical,
+        "PostgreSQL capability analysis and planning",
+        capability,
+    );
+
+    runner.measure(
+        Suite::Historical,
+        "Runtime model definition (ModelBuilder::freeze current-API equivalent)",
+        10_000,
+        build_historical_runtime_model,
+    );
+}
+
+fn modern_benchmarks(runner: &mut Runner) {
+    runner.measure(
+        Suite::Modern,
+        "Expression construction (modern semantic workload)",
+        100_000,
         build_expression,
     );
 
     let model = BenchAccount::model_def().expect("benchmark model remains valid");
-    let prepared = build_expression()
+    let expression = build_expression();
+    runner.measure(Suite::Modern, "Expression preparation", 100_000, || {
+        black_box(&expression)
+            .prepare_for(model)
+            .expect("benchmark expression preparation remains valid")
+    });
+
+    let row = benchmark_account(42);
+    runner.measure(
+        Suite::Modern,
+        "Direct prepare plus evaluate",
+        100_000,
+        || {
+            black_box(&expression)
+                .evaluate_truth(black_box(&row))
+                .expect("direct benchmark evaluation remains valid")
+        },
+    );
+    let prepared = expression
         .prepare_for(model)
         .expect("benchmark expression remains valid");
-    let row = benchmark_account(42);
     let context = EvalContext::single(&row);
-    measure(
-        "Expression evaluation",
-        Some(BASELINE_EXPRESSION_EVALUATION),
+    runner.measure(
+        Suite::Modern,
+        "Prepared expression evaluation",
+        1_000_000,
         || {
             prepared
                 .evaluate_truth(black_box(&context))
-                .expect("benchmark evaluation remains valid")
+                .expect("prepared benchmark evaluation remains valid")
         },
     );
+    runner.measure(
+        Suite::Modern,
+        "Runtime model definition (modern semantic workload)",
+        10_000,
+        build_runtime_model,
+    );
 
-    let expression = build_expression();
     let pipeline = benchmark_pipeline();
-    measure(
-        "Expression/pipeline clone plus fingerprints",
-        Some(BASELINE_CLONE_AND_FINGERPRINTS),
+    runner.measure(
+        Suite::Modern,
+        "Expression/pipeline clone only",
+        100_000,
+        || (black_box(&expression).clone(), black_box(&pipeline).clone()),
+    );
+    runner.measure(
+        Suite::Modern,
+        "Cold expression fingerprint",
+        100_000,
+        || {
+            build_expression()
+                .fingerprint()
+                .expect("cold expression fingerprint remains valid")
+        },
+    );
+    expression
+        .fingerprint()
+        .expect("warm expression fingerprint remains valid");
+    runner.measure(
+        Suite::Modern,
+        "Warm expression fingerprint",
+        100_000,
+        || {
+            black_box(&expression)
+                .fingerprint()
+                .expect("warm expression fingerprint remains valid")
+        },
+    );
+    runner.measure(Suite::Modern, "Cold pipeline lowering", 10_000, || {
+        benchmark_pipeline()
+            .prepared_plan()
+            .expect("cold pipeline lowering remains valid")
+    });
+    pipeline
+        .prepared_plan()
+        .expect("warm pipeline lowering remains valid");
+    runner.measure(Suite::Modern, "Warm pipeline lowering", 100_000, || {
+        black_box(&pipeline)
+            .prepared_plan()
+            .expect("warm pipeline lowering remains valid")
+    });
+    runner.measure(Suite::Modern, "Cold pipeline fingerprint", 10_000, || {
+        benchmark_pipeline()
+            .fingerprint()
+            .expect("cold pipeline fingerprint remains valid")
+    });
+    runner.measure(Suite::Modern, "Warm pipeline fingerprint", 100_000, || {
+        black_box(&pipeline)
+            .fingerprint()
+            .expect("warm pipeline fingerprint remains valid")
+    });
+    runner.measure(
+        Suite::Modern,
+        "Expression/pipeline clone plus fingerprints (modern semantic workload)",
+        100_000,
         || {
             let expression = black_box(&expression).clone();
             let pipeline = black_box(&pipeline).clone();
@@ -102,41 +260,61 @@ fn baseline_benchmarks() {
         },
     );
 
-    let postgres = postgres_runtime_engine();
-    measure(
-        "PostgreSQL capability analysis and planning",
-        Some(BASELINE_POSTGRES_PLANNING),
-        || {
-            postgres
-                .explain(black_box(&pipeline), PlacementPolicy::RemoteOnly)
-                .expect("benchmark plan remains supported")
-        },
-    );
-
-    measure(
-        "Runtime model definition",
-        Some(BASELINE_RUNTIME_MODEL),
-        build_runtime_model,
-    );
-}
-
-fn roadmap_benchmarks() {
-    println!("\nAdditional roadmap workloads");
-
-    let pipeline = benchmark_pipeline();
     let plan = pipeline
         .logical_plan()
         .expect("benchmark pipeline remains valid");
     let parameters = Parameters::new();
-    let postgres = PostgresEngine::new(postgres_catalog());
-    measure("PostgreSQL offline compilation", None, || {
+    let postgres = postgres_runtime_engine(postgres_catalog());
+    runner.measure(
+        Suite::Modern,
+        "PostgreSQL capability analysis and planning (modern semantic workload)",
+        10_000,
+        || {
+            postgres
+                .explain(black_box(&pipeline), PlacementPolicy::RemoteOnly)
+                .expect("benchmark explain plan remains valid")
+        },
+    );
+    runner.measure(Suite::Modern, "PostgreSQL placement", 10_000, || {
+        analyze_engine_placement(
+            black_box(&plan),
+            black_box(&postgres),
+            PlacementPolicy::RemoteOnly,
+        )
+        .expect("benchmark placement remains valid")
+    });
+    let placement = analyze_engine_placement(&plan, &postgres, PlacementPolicy::RemoteOnly)
+        .expect("benchmark placement remains valid");
+    runner.measure(
+        Suite::Modern,
+        "PostgreSQL explain construction",
+        10_000,
+        || ExplainPlan::new(postgres.info(), black_box(&plan), black_box(&placement)),
+    );
+    runner.measure(Suite::Modern, "PostgreSQL SQL compilation", 10_000, || {
         postgres
             .compile(black_box(&plan), black_box(&parameters))
             .expect("benchmark PostgreSQL compilation remains valid")
     });
+    runner.measure(
+        Suite::Modern,
+        "PostgreSQL supported placement plus compilation",
+        10_000,
+        || {
+            analyze_engine_placement(
+                black_box(&plan),
+                black_box(&postgres),
+                PlacementPolicy::RemoteOnly,
+            )
+            .expect("benchmark placement remains valid");
+            postgres
+                .compile(black_box(&plan), black_box(&parameters))
+                .expect("benchmark PostgreSQL compilation remains valid")
+        },
+    );
 
     let mongodb = MongodbEngine::new(mongodb_catalog());
-    measure("MongoDB offline compilation", None, || {
+    runner.measure(Suite::Modern, "MongoDB offline compilation", 10_000, || {
         mongodb
             .compile(black_box(&plan), black_box(&parameters))
             .expect("benchmark MongoDB compilation remains valid")
@@ -145,7 +323,7 @@ fn roadmap_benchmarks() {
     let wire_type = <Vec<Option<String>> as DataType>::type_def();
     let encoded = encode_type_def(&wire_type).expect("benchmark wire type remains valid");
     let wire_name = format!("Wire TypeDef decode ({} byte frame)", encoded.len());
-    measure(&wire_name, None, || {
+    runner.measure(Suite::Modern, wire_name, 100_000, || {
         decode_type_def(black_box(&encoded), DecodeLimits::default())
             .expect("benchmark wire payload remains valid")
     });
@@ -153,9 +331,10 @@ fn roadmap_benchmarks() {
     let (source, target) = migration_snapshots();
     let planner = DefaultMigrationPlanner::default();
     let intent = MigrationIntent::default();
-    measure(
+    runner.measure(
+        Suite::Modern,
         "Migration diff and plan (1 entity, 2 changes)",
-        None,
+        10_000,
         || {
             planner
                 .plan(black_box(&source), black_box(&target), black_box(&intent))
@@ -164,14 +343,19 @@ fn roadmap_benchmarks() {
     );
 
     let (request, candidates, limits) = vector_fixture();
-    measure("Exact vector search (128 x 64, top 10)", None, || {
-        exact_search(
-            black_box(&request),
-            black_box(&candidates).iter().cloned(),
-            limits,
-        )
-        .expect("benchmark vector search remains valid")
-    });
+    runner.measure(
+        Suite::Modern,
+        "Exact vector search (128 x 64, top 10)",
+        1_000,
+        || {
+            exact_search(
+                black_box(&request),
+                black_box(&candidates).iter().cloned(),
+                limits,
+            )
+            .expect("benchmark vector search remains valid")
+        },
+    );
 
     let mut memory = MemoryEngine::new();
     let rows = DataSet::try_new((0_u64..128).map(benchmark_account))
@@ -180,22 +364,179 @@ fn roadmap_benchmarks() {
         .load(&rows)
         .expect("benchmark data set remains loadable");
     let options = ExecutionOptions::default();
-    measure("Memory pipeline execution (128 input rows)", None, || {
-        let mut stream = memory
-            .execute(
-                black_box(&pipeline),
-                black_box(&parameters),
-                black_box(&options),
-            )
-            .expect("benchmark memory execution remains valid");
-        collect_stream(&mut stream).expect("benchmark stream remains collectable")
-    });
+    runner.measure(
+        Suite::Modern,
+        "Memory pipeline execution (128 input rows)",
+        1_000,
+        || {
+            let mut stream = memory
+                .execute(
+                    black_box(&pipeline),
+                    black_box(&parameters),
+                    black_box(&options),
+                )
+                .expect("benchmark memory execution remains valid");
+            collect_stream(&mut stream).expect("benchmark stream remains collectable")
+        },
+    );
+
+    scale_benchmarks(runner);
 }
 
-fn representation_measurements() {
-    println!("\nRepresentation");
-    report_size::<Expr<Truth>>("Expr handle stack size", 32);
-    report_size::<Pipeline<BenchAccount>>("Pipeline handle stack size", 32);
+fn representation_measurements(runner: &mut Runner) {
+    runner.note(
+        Suite::Historical,
+        "Expr handle stack size",
+        format!(
+            "{} bytes (historical baseline: 32 bytes)",
+            size_of::<Expr<Truth>>()
+        ),
+    );
+    runner.note(
+        Suite::Historical,
+        "Pipeline handle stack size",
+        format!(
+            "{} bytes (historical baseline: 32 bytes)",
+            size_of::<Pipeline<BenchmarkRow>>()
+        ),
+    );
+}
+
+fn historical_expression() -> Expr<Truth> {
+    BenchmarkRow::active
+        .eq(true)
+        .and(BenchmarkRow::value.ge(10_i32))
+        .and(BenchmarkRow::label.contains("data"))
+}
+
+fn historical_pipeline() -> Pipeline<BenchmarkRow> {
+    Pipeline::<BenchmarkRow>::from_model()
+        .filter(historical_expression())
+        .order_by_desc(BenchmarkRow::id)
+        .limit(100)
+}
+
+fn historical_row() -> BenchmarkRow {
+    BenchmarkRow {
+        id: 1,
+        value: 42,
+        active: true,
+        label: "data operating language".into(),
+    }
+}
+
+fn build_historical_runtime_model() -> ModelDef {
+    ModelBuilder::with_key(
+        "historical/benchmark_runtime_rows",
+        "benchmark_runtime_rows",
+    )
+    .field::<u64>("id")
+    .field::<i32>("value")
+    .field::<bool>("active")
+    .field::<String>("label")
+    .identity(["id"])
+    .freeze()
+    .expect("historical runtime model remains valid")
+}
+
+fn historical_postgres_catalog() -> PostgresCatalog {
+    let mapping = TableMapping::new("public", "benchmark_rows")
+        .field("id", ColumnMapping::required("id"))
+        .field("value", ColumnMapping::required("value"))
+        .field("active", ColumnMapping::required("active"))
+        .field("label", ColumnMapping::required("label"));
+    let mut catalog = PostgresCatalog::new();
+    catalog
+        .register(
+            BenchmarkRow::model_def().expect("historical benchmark model remains valid"),
+            mapping,
+        )
+        .expect("historical PostgreSQL mapping remains valid");
+    catalog
+}
+
+fn postgres_runtime_engine(catalog: PostgresCatalog) -> PostgresEngine {
+    let runtime = PostgresRuntimeConfig::parse(
+        "host=localhost user=dol dbname=dol sslmode=require connect_timeout=1",
+    )
+    .expect("benchmark PostgreSQL runtime policy remains valid");
+    PostgresEngine::with_runtime(catalog, runtime)
+}
+
+fn scale_benchmarks(runner: &mut Runner) {
+    for depth in [8_usize, 64, 256] {
+        runner.measure(
+            Suite::Modern,
+            format!("Expression construction plus preparation (depth {depth})"),
+            fixed_scale_iterations(depth),
+            || {
+                expression_at_depth(depth)
+                    .prepare(&dol_core::expr::BindContext::new())
+                    .expect("scaled expression remains valid")
+            },
+        );
+    }
+
+    for stages in [4_usize, 32, 256] {
+        runner.measure(
+            Suite::Modern,
+            format!("Pipeline construction plus lowering ({stages} stages)"),
+            fixed_scale_iterations(stages),
+            || {
+                pipeline_with_stages(stages)
+                    .logical_plan()
+                    .expect("scaled pipeline remains valid")
+            },
+        );
+    }
+
+    for fields in [4_usize, 64, 1_024] {
+        runner.measure(
+            Suite::Modern,
+            format!("Runtime model definition ({fields} fields)"),
+            fixed_scale_iterations(fields),
+            || model_with_fields(fields),
+        );
+    }
+}
+
+fn fixed_scale_iterations(size: usize) -> u64 {
+    match size {
+        0..=8 => 10_000,
+        9..=64 => 1_000,
+        65..=256 => 100,
+        _ => 10,
+    }
+}
+
+fn expression_at_depth(depth: usize) -> Expr<Truth> {
+    let mut expression = Expr::literal(Truth::True);
+    for _ in 1..depth {
+        expression = expression.and(Expr::literal(Truth::True));
+    }
+    expression
+}
+
+fn pipeline_with_stages(stages: usize) -> Pipeline<BenchAccount> {
+    let mut pipeline = Pipeline::<BenchAccount>::from_model();
+    for limit in 1..stages {
+        pipeline = pipeline.limit(u64::try_from(limit).expect("stage count remains in range"));
+    }
+    pipeline
+}
+
+fn model_with_fields(fields: usize) -> ModelDef {
+    let mut builder = ModelBuilder::with_key(
+        format!("bench/model-width-{fields}"),
+        format!("ModelWidth{fields}"),
+    );
+    for index in 0..fields {
+        builder = builder.field::<u64>(format!("field_{index:04}"));
+    }
+    builder
+        .identity(["field_0000"])
+        .freeze()
+        .expect("scaled runtime model remains valid")
 }
 
 fn build_expression() -> Expr<Truth> {
@@ -250,14 +591,6 @@ fn postgres_catalog() -> PostgresCatalog {
         )
         .expect("benchmark PostgreSQL mapping remains valid");
     catalog
-}
-
-fn postgres_runtime_engine() -> PostgresEngine {
-    let runtime = PostgresRuntimeConfig::parse(
-        "host=localhost user=dol dbname=dol sslmode=require connect_timeout=1",
-    )
-    .expect("benchmark PostgreSQL runtime policy remains valid");
-    PostgresEngine::with_runtime(postgres_catalog(), runtime)
 }
 
 fn mongodb_catalog() -> MongodbCatalog {
@@ -356,64 +689,4 @@ fn vector_fixture() -> (ExactSearchRequest, Vec<VectorCandidate>, SearchLimits) 
         })
         .collect();
     (request, candidates, limits)
-}
-
-fn measure<T>(name: &str, baseline: Option<f64>, mut operation: impl FnMut() -> T) {
-    let iterations = calibrate(&mut operation);
-    let mut samples = Vec::with_capacity(SAMPLE_COUNT);
-    for _ in 0..SAMPLE_COUNT {
-        let started = Instant::now();
-        for _ in 0..iterations {
-            black_box(operation());
-        }
-        samples.push(started.elapsed().as_secs_f64());
-    }
-
-    samples.sort_by(f64::total_cmp);
-    let median_seconds = samples[SAMPLE_COUNT / 2];
-    let operations_per_second = iterations as f64 / median_seconds;
-    let nanos_per_operation = median_seconds * 1_000_000_000.0 / iterations as f64;
-    let minimum = iterations as f64 / samples[SAMPLE_COUNT - 1];
-    let maximum = iterations as f64 / samples[0];
-
-    match baseline {
-        Some(baseline) => {
-            let delta = (operations_per_second / baseline - 1.0) * 100.0;
-            println!(
-                "{name}: {operations_per_second:.0} ops/s ({nanos_per_operation:.1} ns/op, {delta:+.1}% vs baseline; range {minimum:.0}..{maximum:.0}; n={iterations})"
-            );
-        }
-        None => println!(
-            "{name}: {operations_per_second:.0} ops/s ({nanos_per_operation:.1} ns/op; range {minimum:.0}..{maximum:.0}; n={iterations})"
-        ),
-    }
-}
-
-fn calibrate<T>(operation: &mut impl FnMut() -> T) -> u64 {
-    let mut iterations = 1_u64;
-    loop {
-        let started = Instant::now();
-        for _ in 0..iterations {
-            black_box(operation());
-        }
-        let elapsed = started.elapsed();
-        if elapsed >= CALIBRATION_FLOOR || iterations == MAX_ITERATIONS {
-            let elapsed_nanos = elapsed.as_nanos().max(1);
-            let target = TARGET_SAMPLE.as_nanos();
-            let scaled = u128::from(iterations)
-                .saturating_mul(target)
-                .div_ceil(elapsed_nanos);
-            return u64::try_from(scaled)
-                .unwrap_or(MAX_ITERATIONS)
-                .clamp(1, MAX_ITERATIONS);
-        }
-        iterations = iterations.saturating_mul(10).min(MAX_ITERATIONS);
-    }
-}
-
-fn report_size<T>(name: &str, baseline_bytes: usize) {
-    let current = size_of::<T>();
-    let delta = isize::try_from(current).expect("stack size remains in range")
-        - isize::try_from(baseline_bytes).expect("baseline size remains in range");
-    println!("{name}: {current} bytes ({delta:+} bytes vs baseline)");
 }

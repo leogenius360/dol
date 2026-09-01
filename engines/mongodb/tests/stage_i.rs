@@ -128,6 +128,15 @@ fn catalog_rejects_reserved_fields_and_stale_exact_models() {
 }
 
 #[test]
+fn validated_mapping_is_safe_for_repeated_exact_model_lookup() {
+    let catalog = catalog();
+    let model = Account::model_def().unwrap();
+    let first = catalog.collection(model).unwrap();
+    let second = catalog.collection(model).unwrap();
+    assert!(std::ptr::eq(first, second));
+}
+
+#[test]
 fn runtime_configuration_redacts_credentials_and_claims_only_read_slice() {
     let runtime = MongodbRuntimeConfig::new("mongodb://user:super-secret@localhost:27017")
         .application_name("dol-stage-i");

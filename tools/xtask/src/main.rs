@@ -20,9 +20,19 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), String> {
-    let command = env::args().nth(1).unwrap_or_else(|| "help".into());
+    let arguments = env::args().collect::<Vec<_>>();
+    let command = arguments.get(1).map_or("help", String::as_str);
+    let command_arguments = arguments.get(2..).unwrap_or_default();
+    let command_arguments = if command_arguments
+        .first()
+        .is_some_and(|argument| argument == "--")
+    {
+        &command_arguments[1..]
+    } else {
+        command_arguments
+    };
 
-    match command.as_str() {
+    match command {
         "check" => check(),
         "fmt" => cargo(["fmt", "--all", "--check"]),
         "lint" => cargo([
@@ -46,8 +56,8 @@ fn run() -> Result<(), String> {
         "postgres-live-external" => postgres_live_external(),
         "postgres-down" => postgres_down(),
         "mongodb-live-external" => mongodb_live_external(),
-        "bench" => benchmarks(false),
-        "bench-check" => benchmarks(true),
+        "bench" => benchmarks(false, command_arguments),
+        "bench-check" => benchmarks(true, command_arguments),
         "fuzz-check" => fuzz_check(),
         "fuzz" => fuzz(),
         "ci" => ci(),
@@ -596,7 +606,7 @@ fn cargo<const N: usize>(args: [&str; N]) -> Result<(), String> {
     run_command("cargo", args)
 }
 
-fn benchmarks(check_only: bool) -> Result<(), String> {
+fn benchmarks(check_only: bool, benchmark_args: &[String]) -> Result<(), String> {
     if check_only {
         cargo([
             "bench",
@@ -615,14 +625,24 @@ fn benchmarks(check_only: bool) -> Result<(), String> {
             "--no-run",
         ])
     } else {
-        cargo([
-            "bench",
-            "--package",
-            "dol-core",
-            "--bench",
-            "semantic_hot_paths",
-        ])?;
-        cargo(["bench", "--package", "dol-bench", "--bench", "roadmap"])
+        let historical_only = benchmark_args
+            .windows(2)
+            .any(|pair| pair == ["--suite", "historical"]);
+        if !historical_only {
+            cargo([
+                "bench",
+                "--package",
+                "dol-core",
+                "--bench",
+                "semantic_hot_paths",
+            ])?;
+        }
+        let mut command = Command::new("cargo");
+        command.args(["bench", "--package", "dol-bench", "--bench", "roadmap"]);
+        if !benchmark_args.is_empty() {
+            command.arg("--").args(benchmark_args);
+        }
+        run_prepared_command("cargo", &mut command)
     }
 }
 
@@ -737,6 +757,7 @@ fn help() {
          \n  cargo xtask mongodb-live-external explicitly configured MongoDB conformance\
          \n  cargo xtask bench        run repository benchmark harnesses\
          \n  cargo xtask bench-check  compile benchmark harnesses without running them\
+         \n                           pass suite/filter/mode/format/output options after `--`\
          \n  cargo xtask fuzz-check   format + strict-clippy all isolated fuzz targets\
          \n  cargo xtask fuzz         bounded cargo-fuzz smoke campaigns\
          \n  cargo xtask ci           check + security\n"

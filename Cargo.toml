@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
 description = "Rust-native Data Operating Language facade"
 
 [workspace]
@@ -29,6 +31,14 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.98"
 license = "BSD-3-Clause"
+authors = ["Dominic Maabobra Tuolong"]
+repository = "https://github.com/leogenius360/dol"
+
+[profile.bench]
+codegen-units = 1
+lto = "thin"
+overflow-checks = true
+strip = "debuginfo"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

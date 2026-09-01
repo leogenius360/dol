@@ -5,6 +5,8 @@ publish = false
 edition = "2024"
 rust-version = "1.98"
 license = "BSD-3-Clause"
+authors = ["Dominic Maabobra Tuolong"]
+repository = "https://github.com/leogenius360/dol"
 
 [package.metadata]
 cargo-fuzz = true

@@ -27,11 +27,13 @@ pub(crate) fn normalize_node(node: Arc<ExprNode>) -> Result<Arc<ExprNode>> {
                 return Ok(Arc::new(ExprNode {
                     kind: ExprKind::Literal(folded),
                     ty: node.ty.clone(),
+                    fingerprint: std::sync::OnceLock::new(),
                 }));
             }
             Ok(Arc::new(ExprNode {
                 kind: ExprKind::Unary { op: *op, input },
                 ty: node.ty.clone(),
+                fingerprint: std::sync::OnceLock::new(),
             }))
         }
         ExprKind::Binary { op, left, right } => {
@@ -44,6 +46,7 @@ pub(crate) fn normalize_node(node: Arc<ExprNode>) -> Result<Arc<ExprNode>> {
                         return Ok(Arc::new(ExprNode {
                             kind: ExprKind::Literal(left_value.clone()),
                             ty: node.ty.clone(),
+                            fingerprint: std::sync::OnceLock::new(),
                         }));
                     }
                     Datum::Missing | Datum::Null => return normalize_node(Arc::clone(right)),
@@ -58,6 +61,7 @@ pub(crate) fn normalize_node(node: Arc<ExprNode>) -> Result<Arc<ExprNode>> {
                 return Ok(Arc::new(ExprNode {
                     kind: ExprKind::Literal(folded),
                     ty: node.ty.clone(),
+                    fingerprint: std::sync::OnceLock::new(),
                 }));
             }
             Ok(Arc::new(ExprNode {
@@ -67,6 +71,7 @@ pub(crate) fn normalize_node(node: Arc<ExprNode>) -> Result<Arc<ExprNode>> {
                     right,
                 },
                 ty: node.ty.clone(),
+                fingerprint: std::sync::OnceLock::new(),
             }))
         }
         ExprKind::Membership {
@@ -106,6 +111,7 @@ pub(crate) fn normalize_node(node: Arc<ExprNode>) -> Result<Arc<ExprNode>> {
                 return Ok(Arc::new(ExprNode {
                     kind: ExprKind::Literal(folded),
                     ty: node.ty.clone(),
+                    fingerprint: std::sync::OnceLock::new(),
                 }));
             }
             Ok(Arc::new(ExprNode {
@@ -115,6 +121,7 @@ pub(crate) fn normalize_node(node: Arc<ExprNode>) -> Result<Arc<ExprNode>> {
                     negate: *negate,
                 },
                 ty: node.ty.clone(),
+                fingerprint: std::sync::OnceLock::new(),
             }))
         }
         ExprKind::Conditional {
@@ -139,6 +146,7 @@ pub(crate) fn normalize_node(node: Arc<ExprNode>) -> Result<Arc<ExprNode>> {
                     when_false,
                 },
                 ty: node.ty.clone(),
+                fingerprint: std::sync::OnceLock::new(),
             }))
         }
         ExprKind::FunctionCall {
@@ -165,6 +173,7 @@ pub(crate) fn normalize_node(node: Arc<ExprNode>) -> Result<Arc<ExprNode>> {
                 return Ok(Arc::new(ExprNode {
                     kind: ExprKind::Literal(folded),
                     ty: node.ty.clone(),
+                    fingerprint: std::sync::OnceLock::new(),
                 }));
             }
             Ok(Arc::new(ExprNode {
@@ -173,6 +182,7 @@ pub(crate) fn normalize_node(node: Arc<ExprNode>) -> Result<Arc<ExprNode>> {
                     arguments,
                 },
                 ty: node.ty.clone(),
+                fingerprint: std::sync::OnceLock::new(),
             }))
         }
         ExprKind::Exists(exists) => Ok(Arc::new(ExprNode {
@@ -180,6 +190,7 @@ pub(crate) fn normalize_node(node: Arc<ExprNode>) -> Result<Arc<ExprNode>> {
                 subquery: Arc::clone(&exists.subquery),
             }),
             ty: node.ty.clone(),
+            fingerprint: std::sync::OnceLock::new(),
         })),
     }
 }

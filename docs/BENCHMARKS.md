@@ -1,84 +1,188 @@
 # Benchmark Contract
 
-The repository owns two dependency-free optimized benchmark targets:
+DOL keeps timing informational and correctness gates deterministic. Scheduler
+load, CPU boost state, power policy, compiler changes, and background services
+can move a single run materially; no CI job fails on a throughput threshold.
+The complete implementation, acceptance, replay, and verification record for
+this work is in [PERFORMANCE_MILESTONE.md](PERFORMANCE_MILESTONE.md).
 
-- `dol-bench/roadmap` measures the supplied baseline labels plus representative
-  roadmap paths across core, engines, migrations, wire, and ML;
-- `dol-core/semantic_hot_paths` probes recursive type validation and canonical
+## Running the suites
+
+The repository owns two framework-free optimized benchmark targets:
+
+- `dol-bench/roadmap` contains the archive-identified, user-attested historical
+  fixture equivalents,
+  the modern semantic workloads, engine decomposition, and scale sweeps;
+- `dol-core/semantic_hot_paths` covers recursive type validation and canonical
   datum fingerprinting.
 
-Run both with `cargo xtask bench`; compile them without executing with
-`cargo xtask bench-check`. Both runners calibrate each workload, collect nine
-approximately 150 ms samples, and report the median throughput, median latency,
-observed sample range, and calibrated iterations. They deliberately have no
-timing threshold: machine load, power policy, compiler changes, and CPU frequency
-make performance results unsuitable as correctness gates.
+Use:
 
-## Baseline comparison contract
+```text
+cargo xtask bench
+cargo xtask bench -- --suite historical --mode historical-fixed
+cargo xtask bench -- --suite modern --filter fingerprint
+cargo xtask bench -- --format csv --output target/benchmarks/dol.csv
+cargo xtask bench-check
+```
 
-The initial figures supplied for 2026-08-23 did not include their fixture source,
-and no original matching implementation was present before this harness was added.
-The suite therefore preserves a concrete reconstructed contract for the five
-labels. Its percentage deltas are directional rather than strict apples-to-apples
-regressions until an original fixture can prove equivalence.
+The roadmap runner accepts:
 
-| Label | Preserved workload |
+- `--suite historical|modern|all`;
+- `--filter <case-insensitive substring>`;
+- `--mode historical-fixed|adaptive`;
+- `--format text|csv`;
+- `--output <path>`.
+
+Adaptive mode calibrates each selected operation, then records nine samples of
+approximately 150 ms. Historical-fixed mode performs one pass with the recorded
+historical iteration count for each historical workload: 100,000 constructions,
+1,000,000 evaluations, 100,000 clone/fingerprint pairs, and 10,000 model builds.
+The historical operations retain their archived ordering. Every report includes
+iterations, samples, median throughput and latency, observed range, Unix
+timestamp, commit and dirty state, `rustc -Vv`, target/OS/CPU, power scheme,
+declared repository bench-profile settings, observed Cargo profile environment
+overrides, and archive/harness hashes.
+
+The explicit bench profile uses one codegen unit, thin LTO, overflow checks, and
+stripped debug information. Cargo ignores an explicit `panic` setting for test
+and bench targets; its effective strategy remains the default unwind behavior.
+
+## Provenance
+
+The user supplied two archives. They are evidence and design history, not code
+to import into the current implementation.
+
+| Archive | SHA-256 | License in archive | Role and limitation |
+| --- | --- | --- | --- |
+| `dol-dev.zip` | `7938843901EF1D5C0F853139CDF4A8FE11032F6CDE0F98FCC3666F2BC71D5C39` | BSD-3-Clause, copyright Genius Tech Space | Oldest supplied starting point. It contains earlier packed-handle and workspace-design ideas, but a materially different API and no baseline harness. |
+| `dol.zip` | `66F1631213557B6EB011D1D4CF896DFEC6C392F5B1D286175D6834BAB65FE71C` | MIT OR Apache-2.0, copyright Genius Tech Space | User-attested source/fixture snapshot associated with the August 23 baseline. It has no Git metadata, contains later files, and cannot identify the exact measured commit. |
+
+The archived harness is `dol/benches/language.rs`, SHA-256
+`03B2638B1F469A8F00FC0EF006E69515728290DDFF684F9684C934F2C4CA3306`.
+Its behavior was independently expressed through current public APIs; archived
+MIT/Apache implementation text was not copied. The current repository and all
+new first-party code remain BSD-3-Clause.
+
+### Archive replay result
+
+The untouched `dol.zip` tree fails under Rust 1.98.0 before the harness can run:
+
+1. the facade imports `BinaryPipeline`, `BinaryPipelineStage`, and
+   `BinaryStageKind`, but `dol-core` does not re-export them at its crate root;
+2. the archived MongoDB dev dependency fails `E0310` because
+   `compile_pipeline<I, O>` calls a pipeline API requiring `I: 'static` and
+   `O: 'static` without those bounds.
+
+Two isolated copies were attempted: an archive-native copy with only the
+recorded crate-root re-export repair, and a normalized copy with that repair plus
+an explicit matching `[profile.bench]`. Both reached the independent MongoDB
+error. The replay policy permits no archived engine, expression, pipeline,
+runtime-model, PostgreSQL, or fixture edits, so both timing replays were aborted.
+No archive-native result is claimed.
+
+## Historical fixture contract
+
+The historical suite reproduces these facts:
+
+- `BenchmarkRow { id: u64, value: i32, active: bool, label: String }`;
+- `(active == true AND value >= 10) AND label.contains("data")`;
+- model name `benchmark_rows` (represented under the current API's required
+  `historical/benchmark_rows` semantic key);
+- fixed row `{ id: 1, value: 42, active: true, label: "data operating language" }`,
+  whose expected result is `Truth::True`;
+- `source -> filter -> id descending -> limit 100`.
+
+Comparability is deliberately classified rather than implied:
+
+| Historical label | Current result classification |
 | --- | --- |
-| Expression construction | Build `active == true AND balance >= 10 OR nickname is missing` over the four-field `BenchAccount` model. |
-| Expression evaluation | Evaluate the prepared expression above against one fixed `BenchAccount` and a reused `EvalContext`. |
-| Expression/pipeline clone plus fingerprints | Clone the expression and a source/filter/offset/limit pipeline, then compute both semantic fingerprints. |
-| PostgreSQL capability analysis and planning | Lower that typed pipeline, run concrete PostgreSQL `RemoteOnly` capability placement, and construct its explain plan using an offline TLS-required runtime configuration. No connection is opened. |
-| Runtime model definition | Build and freeze the four-field account model with identity and optional-field uniqueness constraints. |
+| Expression construction | Current-API equivalent fixture; the implementation and representation differ. |
+| Expression evaluation | Prepared current-API equivalent. The archive used its older direct evaluator. |
+| Expression/pipeline clone plus fingerprints | Current-API equivalent operation boundaries and fixed iteration count; semantic identity algorithms differ. |
+| PostgreSQL capability analysis and planning | Not timed. Current exact PostgreSQL support rejects the fixture because sorting and text containment are outside its roadmap boundary. |
+| Runtime model definition | Current `ModelBuilder::freeze` result reported separately. The removed JSON-driven `Model::define` API is not recreated for a benchmark. |
+| `Expr`/`Pipeline` handle sizes | Directly comparable `size_of` measurements. |
 
-The two representation measurements use `size_of` on `Expr<Truth>` and
-`Pipeline<BenchAccount>` and therefore are directly comparable to byte-size
-baselines.
+The archived runner had no warm-up, repetition, range, or confidence estimate;
+combined unrelated work in two labels; included JSON cloning in model timing;
+and omitted CPU, target triple, OS build, power policy, and raw samples. Its
+reported figures remain a local historical reference, not regression thresholds:
 
-## Additional roadmap coverage
+| Measurement | User-attested baseline |
+| --- | ---: |
+| Expression construction | 310,598 operations/s |
+| Expression evaluation | 7,950,175 operations/s |
+| Expression/pipeline clone plus fingerprints | 49,481 pairs/s |
+| PostgreSQL capability analysis and planning | 68,660 plans/s |
+| Runtime model definition | 97,468 models/s |
+| `Expr` handle stack size | 32 bytes |
+| `Pipeline` handle stack size | 32 bytes |
 
-The roadmap runner also measures:
+## Modern semantic suite
 
-- PostgreSQL exact offline compilation of the fixed source/filter/offset/limit
-  logical plan;
-- MongoDB exact offline compilation of that same plan;
-- bounded decode of an encoded `Vec<Option<String>>` `TypeDef` frame;
-- migration diffing and risk-classified planning from one four-field entity to a
-  five-field entity with a new unique index (two changes);
-- exhaustive Euclidean vector search over 128 owned 64-dimensional candidates,
-  returning the top 10; candidate cloning is included because the exact-search
-  API consumes candidates;
-- full memory-engine lowering, execution, and bounded stream collection for the
-  fixed pipeline over 128 input records.
+The modern suite preserves the earlier roadmap workload without presenting its
+five percentages as historical regressions. It uses the four-field
+`BenchAccount` model, the expression
+`active == true AND balance >= 10 OR nickname is missing`, and a
+source/filter/offset/limit pipeline. It now separates:
 
-The core harness separately measures validation of a 48-level nested list type and
-fingerprinting a 144-byte string datum. Keep workload names, shapes, and inclusion
-boundaries stable when comparing runs; introduce a new label when changing them.
+- expression preparation, direct prepare-plus-evaluate, and prepared evaluation;
+- clone-only, cold/warm expression fingerprint, cold pipeline lowering, and
+  cold/warm pipeline fingerprint;
+- PostgreSQL placement, explain construction, SQL compilation, and complete
+  supported placement-plus-compilation;
+- expression depths 8/64/256, pipeline stages 4/32/256, and model widths
+  4/64/1024.
 
-## 2026-08-31 local runs
+The existing MongoDB compilation, wire decode, migration planning, exact vector
+search, memory execution, and recursive semantic hot paths remain included.
+Cold workloads create a fresh authoring root for each operation; warm workloads
+prepare the shared root before sampling so caching cannot hide cold-path cost.
 
-Three invocations of the preserved contract on the development Windows host, Rust
-1.98.0, and Cargo's optimized `bench` profile produced the following band between
-their independently calculated nine-sample medians:
+## Modern observations before this milestone
 
-| Measurement | Current median band | Supplied baseline | Directional delta band |
-| --- | ---: | ---: | ---: |
-| Expression construction | 361,150–404,555 ops/s | 310,598 ops/s | +16.3% to +30.3% |
-| Expression evaluation | 964,528–1,117,340 ops/s | 7,950,175 ops/s | -87.9% to -85.9% |
-| Expression/pipeline clone plus fingerprints | 17,326–19,835 pairs/s | 49,481 pairs/s | -65.0% to -59.9% |
-| PostgreSQL capability analysis and planning | 26,554–31,001 plans/s | 68,660 plans/s | -61.3% to -54.8% |
-| Runtime model definition | 88,740–94,630 models/s | 97,468 models/s | -9.0% to -2.9% |
-| `Expr` handle stack size | 24 bytes | 32 bytes | -8 bytes |
-| `Pipeline` handle stack size | 8 bytes | 32 bytes | -24 bytes |
+The August 31 results below are retained only as observations of the prior
+modern semantic workload. They do not use the historical fixture and therefore
+must not be described as direct baseline deltas.
 
-Additional median bands were 8,863–9,398 PostgreSQL compilations/s, 922–1,051
-MongoDB compilations/s, 397,242–529,936 wire decodes/s, 78,765–84,170 migration
-plans/s, 11,570–22,758 exact vector searches/s, and 2,280–2,460 complete memory
-executions/s. The wide vector-search band is itself evidence that scheduler noise
-must be ruled out before treating a timing change as an implementation regression.
+| Measurement | Three-run median band |
+| --- | ---: |
+| Expression construction | 361,150-404,555 operations/s |
+| Prepared expression evaluation | 964,528-1,117,340 operations/s |
+| Expression/pipeline clone plus fingerprints | 17,326-19,835 pairs/s |
+| PostgreSQL capability analysis and planning | 26,554-31,001 plans/s |
+| Runtime model definition | 88,740-94,630 models/s |
+| `Expr` handle stack size | 24 bytes |
+| `Pipeline` handle stack size | 8 bytes |
 
-The final invocation of the adaptive core harness measured 273,644 nested-type
-validations/s (3,654.4 ns/op) and 1,130,130 datum fingerprints/s (884.9 ns/op).
+An immutable export of commit `772f73a` was also measured five times on
+September 1 with Rust 1.98.0 and the normalized profile before implementation
+changes. Its independently calculated modern median bands were:
 
-These observations do not justify an optimization rewrite by themselves. Repeat
-the suite on the same idle host/toolchain, retain the full sample range, profile a
-confirmed regression, and preserve semantic tests before changing implementation.
+| Measurement | Five-run median band |
+| --- | ---: |
+| Expression construction | 407,677-491,445 operations/s |
+| Prepared expression evaluation | 1,069,098-1,212,407 operations/s |
+| Expression/pipeline clone plus fingerprints | 19,488-21,649 pairs/s |
+| PostgreSQL capability analysis and planning | 30,377-33,880 plans/s |
+| Runtime model definition | 104,772-114,476 models/s |
+| PostgreSQL compilation | 10,759-12,336 compilations/s |
+| MongoDB compilation | 1,121-1,199 compilations/s |
+| Wire decode | 565,742-578,169 decodes/s |
+| Migration plan | 87,298-99,045 plans/s |
+| Exact vector search | 13,109-30,176 searches/s |
+| Memory execution | 2,678-2,789 executions/s |
+
+The broad vector range demonstrates why acceptance uses repeated same-host runs
+and why raw ranges remain part of every report.
+
+## Optimization acceptance
+
+For a proposed low-risk optimization, compare five alternating same-host runs
+against the immutable pre-change export. Accept it only when the target median
+improves by at least 10%, exceeds observed run noise, and no related median
+regresses by more than 5%. Semantic tests, fingerprints, and wire encodings are
+hard gates; timing is not. Arenas, interning, or packed IR require the stricter
+20% target gain, 30% prepared-node footprint reduction, semantic parity, and no
+related regression above 5% before adoption.

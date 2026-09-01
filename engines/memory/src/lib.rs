@@ -127,7 +127,7 @@ impl MemoryEngine {
         parameters: &Parameters,
         options: &ExecutionOptions,
     ) -> Result<MemoryStream> {
-        let plan = pipeline.logical_plan()?;
+        let plan = pipeline.prepared_plan()?;
         self.execute_plan(ExecutionRequest {
             plan: &plan,
             parameters,
@@ -141,7 +141,7 @@ impl MemoryEngine {
         pipeline: &Pipeline<T>,
         policy: PlacementPolicy,
     ) -> Result<ExplainPlan> {
-        let plan = pipeline.logical_plan()?;
+        let plan = pipeline.prepared_plan()?;
         let placement = analyze_engine_placement(&plan, self, policy)?;
         Ok(ExplainPlan::new(&self.info, &plan, &placement))
     }

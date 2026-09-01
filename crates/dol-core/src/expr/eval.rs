@@ -27,21 +27,15 @@ impl PreparedExpression {
         resolve_exists: &mut dyn FnMut(PlanId) -> Result<Truth>,
     ) -> Result<Datum> {
         self.validate_evaluation_scopes(context)?;
-        let mut values = vec![None; self.nodes.len()];
-        self.evaluate_node(self.root, context, &mut values, resolve_exists)
+        self.evaluate_node(self.root, context, resolve_exists)
     }
 
     fn evaluate_node(
         &self,
         id: ExprId,
         context: &EvalContext<'_>,
-        values: &mut [Option<Datum>],
         resolve_exists: &mut dyn FnMut(PlanId) -> Result<Truth>,
     ) -> Result<Datum> {
-        if let Some(value) = values.get(id.index()).cloned().flatten() {
-            return Ok(value);
-        }
-
         let node = self.nodes.get(id.index()).ok_or_else(|| {
             Diagnostic::error(
                 "EXPR-EVAL-107",
@@ -89,17 +83,17 @@ impl PreparedExpression {
                 parameter.datum.clone()
             }
             PreparedKind::Unary { op, input } => {
-                let input = self.evaluate_node(*input, context, values, resolve_exists)?;
+                let input = self.evaluate_node(*input, context, resolve_exists)?;
                 eval_unary(*op, input, &node.ty)?
             }
             PreparedKind::Binary { op, left, right } => {
-                let left = self.evaluate_node(*left, context, values, resolve_exists)?;
+                let left = self.evaluate_node(*left, context, resolve_exists)?;
                 if *op == super::node::BinaryOp::Coalesce
                     && !matches!(left, Datum::Missing | Datum::Null)
                 {
                     left
                 } else {
-                    let right = self.evaluate_node(*right, context, values, resolve_exists)?;
+                    let right = self.evaluate_node(*right, context, resolve_exists)?;
                     eval_binary(*op, left, right)?
                 }
             }
@@ -108,12 +102,10 @@ impl PreparedExpression {
                 candidates,
                 negate,
             } => {
-                let input = self.evaluate_node(*input, context, values, resolve_exists)?;
+                let input = self.evaluate_node(*input, context, resolve_exists)?;
                 let candidates = candidates
                     .iter()
-                    .map(|candidate| {
-                        self.evaluate_node(*candidate, context, values, resolve_exists)
-                    })
+                    .map(|candidate| self.evaluate_node(*candidate, context, resolve_exists))
                     .collect::<Result<Vec<_>>>()?;
                 eval_membership(input, candidates, *negate)?
             }
@@ -122,14 +114,14 @@ impl PreparedExpression {
                 when_true,
                 when_false,
             } => {
-                let condition = self.evaluate_node(*condition, context, values, resolve_exists)?;
+                let condition = self.evaluate_node(*condition, context, resolve_exists)?;
                 match condition {
                     Datum::Value(Value::Truth(Truth::True)) => {
-                        self.evaluate_node(*when_true, context, values, resolve_exists)?
+                        self.evaluate_node(*when_true, context, resolve_exists)?
                     }
                     Datum::Value(Value::Truth(Truth::False))
                     | Datum::Value(Value::Truth(Truth::Unknown)) => {
-                        self.evaluate_node(*when_false, context, values, resolve_exists)?
+                        self.evaluate_node(*when_false, context, resolve_exists)?
                     }
                     other => eval_conditional(other, Datum::Missing, Datum::Missing)?,
                 }
@@ -140,7 +132,7 @@ impl PreparedExpression {
             } => {
                 let arguments = arguments
                     .iter()
-                    .map(|argument| self.evaluate_node(*argument, context, values, resolve_exists))
+                    .map(|argument| self.evaluate_node(*argument, context, resolve_exists))
                     .collect::<Result<Vec<_>>>()?;
                 function.evaluate(arguments, &node.ty)?
             }
@@ -172,13 +164,6 @@ impl PreparedExpression {
                 )
             })?;
         }
-        let slot = values.get_mut(id.index()).ok_or_else(|| {
-            Diagnostic::error(
-                "EXPR-EVAL-107",
-                "prepared expression references an invalid node",
-            )
-        })?;
-        *slot = Some(value.clone());
         Ok(value)
     }
 

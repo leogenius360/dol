@@ -98,7 +98,7 @@ impl PostgresEngine {
         parameters: &Parameters,
         options: &ExecutionOptions,
     ) -> Result<PostgresStream> {
-        let plan = pipeline.logical_plan()?;
+        let plan = pipeline.prepared_plan()?;
         self.execute_plan(ExecutionRequest {
             plan: &plan,
             parameters,
@@ -112,9 +112,17 @@ impl PostgresEngine {
         pipeline: &Pipeline<T>,
         policy: PlacementPolicy,
     ) -> Result<ExplainPlan> {
-        let plan = pipeline.logical_plan()?;
-        let placement = analyze_engine_placement(&plan, self, policy)?;
-        Ok(ExplainPlan::new(&self.info, &plan, &placement))
+        let plan = pipeline.prepared_plan()?;
+        self.explain_plan(&plan, policy)
+    }
+
+    /// Explains PostgreSQL placement for an already lowered logical plan.
+    ///
+    /// This separates semantic pipeline preparation from placement and explain
+    /// construction for callers that reuse one immutable plan.
+    pub fn explain_plan(&self, plan: &LogicalPlan, policy: PlacementPolicy) -> Result<ExplainPlan> {
+        let placement = analyze_engine_placement(plan, self, policy)?;
+        Ok(ExplainPlan::new(&self.info, plan, &placement))
     }
 }
 

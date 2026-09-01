@@ -41,6 +41,7 @@ impl ExpressionSpec {
                             right,
                         },
                         ty: Truth::type_def(),
+                        fingerprint: std::sync::OnceLock::new(),
                     })),
                     None => next.push(left),
                 }
@@ -63,6 +64,7 @@ impl ExpressionSpec {
                     right: other.node,
                 },
                 ty: Truth::type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             }),
             ty: Truth::type_def(),
         }
@@ -116,6 +118,7 @@ impl Expr<Truth> {
             ExprNode {
                 kind: ExprKind::Exists(ExistentialRef { subquery }),
                 ty: binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             binding,
         )

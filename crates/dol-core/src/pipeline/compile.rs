@@ -17,7 +17,7 @@ use crate::plan::{
 };
 use crate::types::{TypeDef, TypeShape, validate_type, validate_type_universe};
 
-use super::{PipelineNode, projection::ProjectionSpec};
+use super::{PipelineKind, PipelineNode, projection::ProjectionSpec};
 
 mod advanced;
 mod aggregate;
@@ -25,14 +25,6 @@ use advanced::{compile_unnest, compile_window};
 use aggregate::{compile_aggregate_selection, validate_group_projection};
 
 pub(crate) fn compile(node: &Arc<PipelineNode>, limits: PipelineLimits) -> Result<LogicalPlan> {
-    let stage_count = PipelineNode::stage_count(node);
-    if stage_count > limits.max_nodes {
-        return Err(Diagnostic::error(
-            "PIPELINE-LIMIT-002",
-            format!("pipeline has more than {} logical nodes", limits.max_nodes),
-        ));
-    }
-
     let mut builder = PlanBuilder::new();
     let result = compile_pipeline(node, &mut builder, limits, &[])?;
     builder.finish(result.id, result.output.plan_output())
@@ -196,9 +188,9 @@ fn compile_node(
     limits: PipelineLimits,
     outer_scopes: &[Scope],
 ) -> Result<Compiled> {
-    match node.as_ref() {
-        PipelineNode::Source(source) => compile_source(source, builder),
-        PipelineNode::Filter { input, condition } => {
+    match node.kind() {
+        PipelineKind::Source(source) => compile_source(source, builder),
+        PipelineKind::Filter { input, condition } => {
             let input = require_compiled(compiled, input)?;
             let binding_scopes = combine_scopes(outer_scopes, &input.scopes)?;
             let context = bind_context(&binding_scopes);
@@ -226,7 +218,7 @@ fn compile_node(
             )?;
             Ok(Compiled { id, ..input })
         }
-        PipelineNode::Project { input, projection } => {
+        PipelineKind::Project { input, projection } => {
             let input = require_compiled(compiled, input)?;
             let context = bind_context(&input.scopes);
             let projection = compile_projection(projection, &context, limits)?;
@@ -246,7 +238,7 @@ fn compile_node(
                 output,
             })
         }
-        PipelineNode::Aggregate {
+        PipelineKind::Aggregate {
             input,
             groups,
             aggregates,
@@ -284,11 +276,11 @@ fn compile_node(
                 output: Output::Value(output_ty),
             })
         }
-        PipelineNode::Unnest { input } => compile_unnest(compiled, builder, input),
-        PipelineNode::Window { input, window } => {
+        PipelineKind::Unnest { input } => compile_unnest(compiled, builder, input),
+        PipelineKind::Window { input, window } => {
             compile_window(compiled, builder, limits, input, window)
         }
-        PipelineNode::Sort {
+        PipelineKind::Sort {
             input,
             expression,
             direction,
@@ -320,7 +312,7 @@ fn compile_node(
             )?;
             Ok(Compiled { id, ..input })
         }
-        PipelineNode::Distinct { input } => {
+        PipelineKind::Distinct { input } => {
             let input = require_compiled(compiled, input)?;
             input.output.validate_equality("distinct")?;
             let fingerprint =
@@ -328,7 +320,7 @@ fn compile_node(
             let id = builder.push(LogicalNode::Distinct { input: input.id }, fingerprint)?;
             Ok(Compiled { id, ..input })
         }
-        PipelineNode::Slice {
+        PipelineKind::Slice {
             input,
             offset,
             limit,
@@ -346,7 +338,7 @@ fn compile_node(
             )?;
             Ok(Compiled { id, ..input })
         }
-        PipelineNode::Join {
+        PipelineKind::Join {
             left,
             right,
             kind,
@@ -362,7 +354,7 @@ fn compile_node(
                 condition: condition.as_ref(),
             },
         ),
-        PipelineNode::Set {
+        PipelineKind::Set {
             left,
             right,
             operator,
@@ -493,7 +485,7 @@ fn compile_source(source: &super::ModelSource, builder: &mut PlanBuilder) -> Res
     }
     let id = builder.push(
         LogicalNode::Source {
-            model: Box::new(model.clone()),
+            model,
             alias: source.alias().cloned(),
         },
         fingerprint_source(model),

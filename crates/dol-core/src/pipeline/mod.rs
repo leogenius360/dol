@@ -13,7 +13,7 @@ mod window;
 use core::fmt;
 use core::marker::PhantomData;
 use std::collections::HashSet;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use crate::analytics::{AggregateSelection, AggregateSelectionSpec};
 use crate::diagnostic::Result;
@@ -52,8 +52,13 @@ impl ModelSource {
     }
 }
 
+pub(crate) struct PipelineNode {
+    kind: PipelineKind,
+    default_plan: OnceLock<Arc<LogicalPlan>>,
+}
+
 #[derive(Clone)]
-pub(crate) enum PipelineNode {
+pub(crate) enum PipelineKind {
     Source(ModelSource),
     Filter {
         input: Arc<PipelineNode>,
@@ -101,23 +106,45 @@ pub(crate) enum PipelineNode {
     },
 }
 
+impl PipelineNode {
+    fn new(kind: PipelineKind) -> Arc<Self> {
+        Arc::new(Self {
+            kind,
+            default_plan: OnceLock::new(),
+        })
+    }
+
+    pub(crate) const fn kind(&self) -> &PipelineKind {
+        &self.kind
+    }
+
+    fn cached_default_plan(&self) -> Option<Arc<LogicalPlan>> {
+        self.default_plan.get().map(Arc::clone)
+    }
+
+    fn cache_default_plan(&self, plan: Arc<LogicalPlan>) -> Arc<LogicalPlan> {
+        let _ = self.default_plan.set(Arc::clone(&plan));
+        self.cached_default_plan().unwrap_or(plan)
+    }
+}
+
 pub(crate) fn fingerprint_authoring_node(node: &Arc<PipelineNode>) -> Result<Fingerprint> {
     authoring_identity::fingerprint(node)
 }
 
 impl PipelineNode {
     pub(crate) fn push_structural_inputs(&self, output: &mut Vec<Arc<Self>>) {
-        match self {
-            Self::Source(_) => {}
-            Self::Filter { input, .. } => output.push(Arc::clone(input)),
-            Self::Project { input, .. }
-            | Self::Aggregate { input, .. }
-            | Self::Unnest { input }
-            | Self::Window { input, .. }
-            | Self::Sort { input, .. }
-            | Self::Distinct { input }
-            | Self::Slice { input, .. } => output.push(Arc::clone(input)),
-            Self::Join { left, right, .. } | Self::Set { left, right, .. } => {
+        match &self.kind {
+            PipelineKind::Source(_) => {}
+            PipelineKind::Filter { input, .. } => output.push(Arc::clone(input)),
+            PipelineKind::Project { input, .. }
+            | PipelineKind::Aggregate { input, .. }
+            | PipelineKind::Unnest { input }
+            | PipelineKind::Window { input, .. }
+            | PipelineKind::Sort { input, .. }
+            | PipelineKind::Distinct { input }
+            | PipelineKind::Slice { input, .. } => output.push(Arc::clone(input)),
+            PipelineKind::Join { left, right, .. } | PipelineKind::Set { left, right, .. } => {
                 output.push(Arc::clone(right));
                 output.push(Arc::clone(left));
             }
@@ -126,7 +153,7 @@ impl PipelineNode {
 
     fn push_all_inputs(&self, output: &mut Vec<Arc<Self>>) {
         self.push_structural_inputs(output);
-        if let Self::Filter { condition, .. } = self {
+        if let PipelineKind::Filter { condition, .. } = &self.kind {
             condition.push_pipeline_inputs(output);
         }
     }
@@ -190,7 +217,7 @@ impl<M: Model> Pipeline<M> {
 
     fn from_source_alias(alias: Option<Arc<str>>) -> Self {
         Self {
-            node: Arc::new(PipelineNode::Source(ModelSource::of::<M>(alias))),
+            node: PipelineNode::new(PipelineKind::Source(ModelSource::of::<M>(alias))),
             _marker: PhantomData,
         }
     }
@@ -206,15 +233,15 @@ impl<T> Pipeline<T> {
     #[must_use]
     pub fn filter(self, condition: Expr<Truth>) -> Self {
         let condition = condition.spec().canonical_truth();
-        let node = match self.node.as_ref() {
-            PipelineNode::Filter {
+        let node = match self.node.kind() {
+            PipelineKind::Filter {
                 input,
                 condition: existing,
-            } => Arc::new(PipelineNode::Filter {
+            } => PipelineNode::new(PipelineKind::Filter {
                 input: Arc::clone(input),
                 condition: existing.clone().and_truth(condition),
             }),
-            _ => Arc::new(PipelineNode::Filter {
+            _ => PipelineNode::new(PipelineKind::Filter {
                 input: self.node,
                 condition,
             }),
@@ -232,7 +259,7 @@ impl<T> Pipeline<T> {
         P: ProjectionSource,
     {
         Pipeline {
-            node: Arc::new(PipelineNode::Project {
+            node: PipelineNode::new(PipelineKind::Project {
                 input: self.node,
                 projection: projection.__projection_spec(),
             }),
@@ -250,7 +277,7 @@ impl<T> Pipeline<T> {
         A: AggregateSelection,
     {
         Pipeline {
-            node: Arc::new(PipelineNode::Aggregate {
+            node: PipelineNode::new(PipelineKind::Aggregate {
                 input: self.node,
                 groups: None,
                 aggregates: aggregates.__aggregate_selection(),
@@ -271,7 +298,7 @@ impl<T> Pipeline<T> {
         A: AggregateSelection,
     {
         Pipeline {
-            node: Arc::new(PipelineNode::Aggregate {
+            node: PipelineNode::new(PipelineKind::Aggregate {
                 input: self.node,
                 groups: Some(keys.__projection_spec()),
                 aggregates: aggregates.__aggregate_selection(),
@@ -302,7 +329,7 @@ impl<T> Pipeline<T> {
     #[must_use]
     pub fn distinct(self) -> Self {
         Self {
-            node: Arc::new(PipelineNode::Distinct { input: self.node }),
+            node: PipelineNode::new(PipelineKind::Distinct { input: self.node }),
             _marker: PhantomData,
         }
     }
@@ -311,7 +338,7 @@ impl<T> Pipeline<T> {
     #[must_use]
     pub fn offset(self, offset: u64) -> Self {
         Self {
-            node: Arc::new(PipelineNode::Slice {
+            node: PipelineNode::new(PipelineKind::Slice {
                 input: self.node,
                 offset,
                 limit: None,
@@ -324,7 +351,7 @@ impl<T> Pipeline<T> {
     #[must_use]
     pub fn limit(self, limit: u64) -> Self {
         Self {
-            node: Arc::new(PipelineNode::Slice {
+            node: PipelineNode::new(PipelineKind::Slice {
                 input: self.node,
                 offset: 0,
                 limit: Some(limit),
@@ -337,7 +364,7 @@ impl<T> Pipeline<T> {
     #[must_use]
     pub fn slice(self, offset: u64, limit: u64) -> Self {
         Self {
-            node: Arc::new(PipelineNode::Slice {
+            node: PipelineNode::new(PipelineKind::Slice {
                 input: self.node,
                 offset,
                 limit: Some(limit),
@@ -353,7 +380,7 @@ impl<T> Pipeline<T> {
     #[must_use]
     pub fn join<U>(self, other: Pipeline<U>, condition: Expr<Truth>) -> Pipeline<(T, U)> {
         Pipeline {
-            node: Arc::new(PipelineNode::Join {
+            node: PipelineNode::new(PipelineKind::Join {
                 left: self.node,
                 right: other.node,
                 kind: JoinKind::Inner,
@@ -375,7 +402,7 @@ impl<T> Pipeline<T> {
         condition: Expr<Truth>,
     ) -> Pipeline<(T, Option<U>)> {
         Pipeline {
-            node: Arc::new(PipelineNode::Join {
+            node: PipelineNode::new(PipelineKind::Join {
                 left: self.node,
                 right: other.node,
                 kind: JoinKind::Left,
@@ -395,7 +422,7 @@ impl<T> Pipeline<T> {
         condition: Expr<Truth>,
     ) -> Pipeline<(Option<T>, U)> {
         Pipeline {
-            node: Arc::new(PipelineNode::Join {
+            node: PipelineNode::new(PipelineKind::Join {
                 left: self.node,
                 right: other.node,
                 kind: JoinKind::Right,
@@ -415,7 +442,7 @@ impl<T> Pipeline<T> {
         condition: Expr<Truth>,
     ) -> Pipeline<(Option<T>, Option<U>)> {
         Pipeline {
-            node: Arc::new(PipelineNode::Join {
+            node: PipelineNode::new(PipelineKind::Join {
                 left: self.node,
                 right: other.node,
                 kind: JoinKind::Full,
@@ -429,7 +456,7 @@ impl<T> Pipeline<T> {
     #[must_use]
     pub fn cross_join<U>(self, other: Pipeline<U>) -> Pipeline<(T, U)> {
         Pipeline {
-            node: Arc::new(PipelineNode::Join {
+            node: PipelineNode::new(PipelineKind::Join {
                 left: self.node,
                 right: other.node,
                 kind: JoinKind::Cross,
@@ -464,7 +491,7 @@ impl<T> Pipeline<T> {
     #[must_use]
     pub fn window<W>(self, window: Window<W>) -> Pipeline<(T, W)> {
         Pipeline {
-            node: Arc::new(PipelineNode::Window {
+            node: PipelineNode::new(PipelineKind::Window {
                 input: self.node,
                 window: Box::new(window.spec),
             }),
@@ -502,9 +529,24 @@ impl<T> Pipeline<T> {
         PipelineNode::stage_count(&self.node)
     }
 
-    /// Validates and lowers this symbolic computation to a logical DAG.
+    /// Returns the shared default-limit logical plan, preparing it once.
+    ///
+    /// Successful default-limit lowering is cached on the immutable pipeline
+    /// root. Failed lowering is never cached, so diagnostics remain retryable.
+    pub fn prepared_plan(&self) -> Result<Arc<LogicalPlan>> {
+        if let Some(plan) = self.node.cached_default_plan() {
+            return Ok(plan);
+        }
+        let plan = Arc::new(compile::compile(&self.node, PipelineLimits::default())?);
+        Ok(self.node.cache_default_plan(plan))
+    }
+
+    /// Validates and lowers this symbolic computation to an owned logical DAG.
+    ///
+    /// This compatibility API clones the cached default plan. Use
+    /// [`Self::prepared_plan`] on repeated engine paths to share it directly.
     pub fn logical_plan(&self) -> Result<LogicalPlan> {
-        self.logical_plan_with_limits(PipelineLimits::default())
+        Ok((*self.prepared_plan()?).clone())
     }
 
     /// Validates and lowers this pipeline under explicit resource limits.
@@ -514,7 +556,7 @@ impl<T> Pipeline<T> {
 
     /// Canonical fingerprint of the validated logical plan.
     pub fn fingerprint(&self) -> Result<Fingerprint> {
-        Ok(self.logical_plan()?.fingerprint())
+        Ok(self.prepared_plan()?.fingerprint())
     }
 
     fn sort<S>(self, expression: S, direction: SortDirection) -> Self
@@ -523,7 +565,7 @@ impl<T> Pipeline<T> {
     {
         let expression = expression.into_expression();
         Self {
-            node: Arc::new(PipelineNode::Sort {
+            node: PipelineNode::new(PipelineKind::Sort {
                 input: self.node,
                 expression: expression.spec(),
                 direction,
@@ -534,7 +576,7 @@ impl<T> Pipeline<T> {
 
     fn set(self, other: Pipeline<T>, operator: SetOperator) -> Self {
         Self {
-            node: Arc::new(PipelineNode::Set {
+            node: PipelineNode::new(PipelineKind::Set {
                 left: self.node,
                 right: other.node,
                 operator,
@@ -552,7 +594,7 @@ impl<U: DataType> Pipeline<Vec<U>> {
     #[must_use]
     pub fn unnest(self) -> Pipeline<U> {
         Pipeline {
-            node: Arc::new(PipelineNode::Unnest { input: self.node }),
+            node: PipelineNode::new(PipelineKind::Unnest { input: self.node }),
             _marker: PhantomData,
         }
     }
@@ -563,7 +605,7 @@ impl<U: DataType> Pipeline<Option<Vec<U>>> {
     #[must_use]
     pub fn unnest_present(self) -> Pipeline<U> {
         Pipeline {
-            node: Arc::new(PipelineNode::Unnest { input: self.node }),
+            node: PipelineNode::new(PipelineKind::Unnest { input: self.node }),
             _marker: PhantomData,
         }
     }

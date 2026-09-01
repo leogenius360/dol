@@ -114,6 +114,7 @@ fn call1_with_binding<I, O>(function: FunctionRef, input: Expr<I>, binding: Bind
                 arguments: vec![input.node],
             },
             ty: binding.type_def(),
+            fingerprint: std::sync::OnceLock::new(),
         },
         binding,
     )
@@ -132,6 +133,7 @@ fn call2_with_binding<L, R, O>(
                 arguments: vec![left.node, right.node],
             },
             ty: binding.type_def(),
+            fingerprint: std::sync::OnceLock::new(),
         },
         binding,
     )

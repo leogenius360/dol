@@ -40,8 +40,12 @@ use crate::fingerprint::Fingerprint;
 impl<T> Expr<T> {
     /// Canonical semantic fingerprint of the validated, normalized unbound expression.
     pub fn fingerprint(&self) -> crate::diagnostic::Result<Fingerprint> {
+        if let Some(fingerprint) = self.node.cached_fingerprint() {
+            return Ok(fingerprint);
+        }
         let normalized = self.normalized()?;
-        fingerprint::fingerprint_node(&normalized.node)
+        let fingerprint = fingerprint::fingerprint_node(&normalized.node)?;
+        Ok(self.node.cache_fingerprint(fingerprint))
     }
 
     /// Returns a normalized expression using semantics-preserving Phase-2 rewrites.
@@ -71,6 +75,9 @@ impl<T> Expr<T> {
 pub(crate) fn fingerprint_expression_spec(
     expression: &ExpressionSpec,
 ) -> crate::diagnostic::Result<Fingerprint> {
+    if let Some(fingerprint) = expression.node.cached_fingerprint() {
+        return Ok(fingerprint);
+    }
     let limits = crate::limits::ExpressionLimits::default();
     prepare::check_expression_limits(&expression.node, limits)?;
     validate::validate_expression_node(&expression.node, limits)?;
@@ -82,5 +89,6 @@ pub(crate) fn fingerprint_expression_spec(
             "expression's semantic result type disagrees with its authoring type",
         ));
     }
-    fingerprint_expression_node(&normalized)
+    let fingerprint = fingerprint_expression_node(&normalized)?;
+    Ok(expression.node.cache_fingerprint(fingerprint))
 }

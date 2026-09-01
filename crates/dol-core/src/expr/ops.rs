@@ -113,6 +113,7 @@ impl Expr<Truth> {
                     input: self.node,
                 },
                 ty: Truth::type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             Binding::<Truth>::native(),
         )
@@ -381,6 +382,7 @@ fn binary_same<T>(op: BinaryOp, left: Expr<T>, right: Expr<T>) -> Expr<T> {
                 right: right.node,
             },
             ty,
+            fingerprint: std::sync::OnceLock::new(),
         },
         binding,
     )
@@ -395,6 +397,7 @@ fn binary_truth<T>(op: BinaryOp, left: Expr<T>, right: Expr<T>) -> Expr<Truth> {
                 right: right.node,
             },
             ty: Truth::type_def(),
+            fingerprint: std::sync::OnceLock::new(),
         },
         Binding::<Truth>::native(),
     )
@@ -408,6 +411,7 @@ fn unary_truth<T>(op: UnaryOp, input: Expr<T>) -> Expr<Truth> {
                 input: input.node,
             },
             ty: Truth::type_def(),
+            fingerprint: std::sync::OnceLock::new(),
         },
         Binding::<Truth>::native(),
     )

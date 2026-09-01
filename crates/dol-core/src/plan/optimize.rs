@@ -48,7 +48,7 @@ fn redundant_target(node: &LogicalNode, nodes: &[LogicalNode]) -> Option<PlanId>
 fn remap_node(node: &LogicalNode, remap: &[PlanId]) -> Result<LogicalNode> {
     Ok(match node {
         LogicalNode::Source { model, alias } => LogicalNode::Source {
-            model: model.clone(),
+            model,
             alias: alias.clone(),
         },
         LogicalNode::Filter { input, condition } => {

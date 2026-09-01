@@ -498,7 +498,7 @@ fn scope_shapes(plan: &LogicalPlan) -> Result<Vec<Vec<Arc<ModelDef>>>> {
     let mut shapes: Vec<Vec<Arc<ModelDef>>> = Vec::with_capacity(plan.nodes().len());
     for node in plan.nodes() {
         let shape = match node {
-            LogicalNode::Source { model, .. } => vec![Arc::new(model.as_ref().clone())],
+            LogicalNode::Source { model, .. } => vec![Arc::new((**model).clone())],
             LogicalNode::Filter { input, .. }
             | LogicalNode::Window { input, .. }
             | LogicalNode::Sort { input, .. }

@@ -25,6 +25,7 @@ where
                     input: input.node,
                 },
                 ty: binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             binding,
         )
@@ -55,6 +56,7 @@ where
                     input: input.node,
                 },
                 ty: binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             binding,
         )

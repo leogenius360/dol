@@ -88,6 +88,15 @@ fn optional_fields_require_a_presence_column() {
 }
 
 #[test]
+fn validated_mapping_is_safe_for_repeated_exact_model_lookup() {
+    let catalog = catalog();
+    let model = Account::model_def().unwrap();
+    let first = catalog.table(model).unwrap();
+    let second = catalog.table(model).unwrap();
+    assert!(std::ptr::eq(first, second));
+}
+
+#[test]
 fn parameterized_filter_project_and_slice_compile_without_value_interpolation() {
     let engine = PostgresEngine::new(catalog());
     let minimum = Parameter::<i64>::new("minimum");

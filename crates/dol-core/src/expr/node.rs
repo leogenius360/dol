@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use crate::model::{FieldKey, ModelKey};
 use crate::pipeline::PipelineNode;
@@ -11,6 +11,20 @@ use super::function::FunctionRef;
 pub(crate) struct ExprNode {
     pub(crate) kind: ExprKind,
     pub(crate) ty: TypeDef,
+    pub(super) fingerprint: OnceLock<crate::fingerprint::Fingerprint>,
+}
+
+impl ExprNode {
+    pub(crate) fn cached_fingerprint(&self) -> Option<crate::fingerprint::Fingerprint> {
+        self.fingerprint.get().copied()
+    }
+
+    pub(crate) fn cache_fingerprint(
+        &self,
+        fingerprint: crate::fingerprint::Fingerprint,
+    ) -> crate::fingerprint::Fingerprint {
+        *self.fingerprint.get_or_init(|| fingerprint)
+    }
 }
 
 #[derive(Debug, Clone)]

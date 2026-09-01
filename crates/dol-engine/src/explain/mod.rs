@@ -1,5 +1,7 @@
 //! Structured explain-plan vocabulary derived from logical placement.
 
+use std::borrow::Cow;
+
 use dol_core::fingerprint::Fingerprint;
 use dol_core::plan::{LogicalNode, LogicalPlan, PlanId};
 
@@ -12,7 +14,7 @@ pub struct ExplainStep {
     node: PlanId,
     operation: &'static str,
     site: PlacementSite,
-    detail: String,
+    detail: Cow<'static, str>,
 }
 
 impl ExplainStep {
@@ -37,7 +39,7 @@ impl ExplainStep {
     /// Exact-support explanation.
     #[must_use]
     pub fn detail(&self) -> &str {
-        &self.detail
+        self.detail.as_ref()
     }
 }
 
@@ -64,12 +66,13 @@ impl ExplainPlan {
                 site: assigned.site(),
                 detail: match (assigned.site(), assigned.support()) {
                     (PlacementSite::LocalResidual, support) if support.is_supported() => {
-                        "local residual because an upstream input already requires local execution"
-                            .to_owned()
+                        Cow::Borrowed(
+                            "local residual because an upstream input already requires local execution",
+                        )
                     }
-                    (_, crate::Support::ExactNative) => "exact native".to_owned(),
-                    (_, crate::Support::ExactEmulated) => "exact emulated".to_owned(),
-                    (_, crate::Support::Unsupported { reason }) => reason.clone(),
+                    (_, crate::Support::ExactNative) => Cow::Borrowed("exact native"),
+                    (_, crate::Support::ExactEmulated) => Cow::Borrowed("exact emulated"),
+                    (_, crate::Support::Unsupported { reason }) => Cow::Owned(reason.clone()),
                 },
             })
             .collect::<Vec<_>>()

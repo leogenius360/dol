@@ -285,7 +285,7 @@ fn compile_plan(sources: &Sources, plan: &LogicalPlan) -> Result<CompiledPlan> {
             Diagnostic::error("JSONL-EXEC-002", "logical plan contains an invalid node id")
         })?;
         match node {
-            LogicalNode::Source { model, .. } => break model.as_ref(),
+            LogicalNode::Source { model, .. } => break *model,
             LogicalNode::Filter { input, condition } => {
                 if !condition.existential_dependencies().is_empty() {
                     return unsupported("existential expressions");

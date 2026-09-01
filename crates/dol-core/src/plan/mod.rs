@@ -559,8 +559,8 @@ pub enum PlanOutput {
 pub enum LogicalNode {
     /// Storage-independent semantic model source.
     Source {
-        /// Complete immutable semantic model definition.
-        model: Box<ModelDef>,
+        /// Complete immutable semantic model definition owned by its static model.
+        model: &'static ModelDef,
         /// Optional local source alias used only for expression binding.
         alias: Option<Arc<str>>,
     },

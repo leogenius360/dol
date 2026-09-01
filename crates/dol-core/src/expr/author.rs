@@ -84,6 +84,7 @@ impl<T> Expr<T> {
             ExprNode {
                 kind: ExprKind::Literal(binding.to_datum(&value)),
                 ty: binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             binding,
         )
@@ -111,6 +112,7 @@ where
                     input: self.node,
                 },
                 ty: binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             binding,
         )
@@ -129,6 +131,7 @@ where
             ExprNode {
                 kind: ExprKind::Literal(Datum::Null),
                 ty: binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             binding,
         )
@@ -147,6 +150,7 @@ impl<T> From<Field<T>> for Expr<T> {
                     scope: None,
                 }),
                 ty: binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             binding,
         )
@@ -215,9 +219,11 @@ impl<T> Field<T> {
                             scope: None,
                         }),
                         ty: input_binding.type_def(),
+                        fingerprint: std::sync::OnceLock::new(),
                     }),
                 },
                 ty: output_binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             output_binding,
         )
@@ -242,9 +248,11 @@ impl<T> ScopedField<T> {
                             scope: Some(self.scope),
                         }),
                         ty: input_binding.type_def(),
+                        fingerprint: std::sync::OnceLock::new(),
                     }),
                 },
                 ty: output_binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             output_binding,
         )
@@ -263,6 +271,7 @@ impl<T> From<ScopedField<T>> for Expr<T> {
                     scope: Some(field.scope),
                 }),
                 ty: binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             binding,
         )
@@ -287,9 +296,11 @@ impl<T> RuntimeField<T> {
                             scope: None,
                         }),
                         ty: input_binding.type_def(),
+                        fingerprint: std::sync::OnceLock::new(),
                     }),
                 },
                 ty: output_binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             output_binding,
         )
@@ -308,6 +319,7 @@ impl<T> From<&RuntimeField<T>> for Expr<T> {
                     scope: None,
                 }),
                 ty: binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             binding,
         )
@@ -423,6 +435,7 @@ impl<T> Parameter<T> {
                     name: Arc::clone(&self.name),
                 }),
                 ty: self.binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             self.binding,
         )

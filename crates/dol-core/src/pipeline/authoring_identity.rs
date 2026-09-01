@@ -17,7 +17,7 @@ use crate::plan::{
     JoinKind, ProjectionKind, SetOperator, SortDirection, WindowFrameBound, WindowFunctionKind,
 };
 
-use super::{PipelineNode, projection::ProjectionSpec, window::WindowSpec};
+use super::{PipelineKind, PipelineNode, projection::ProjectionSpec, window::WindowSpec};
 
 pub(super) fn fingerprint(root: &Arc<PipelineNode>) -> Result<Fingerprint> {
     let limits = PipelineLimits::default();
@@ -80,24 +80,24 @@ fn fingerprint_node(
     fingerprints: &HashMap<*const PipelineNode, Fingerprint>,
 ) -> Result<Fingerprint> {
     let mut hasher = CanonicalHasher::new(b"pipeline/authoring/v1");
-    match node.as_ref() {
-        PipelineNode::Source(source) => {
+    match node.kind() {
+        PipelineKind::Source(source) => {
             hasher.u8(0);
             let model = source.resolve()?;
             hasher.str(model.key().as_str());
             hasher.bytes(model.fingerprint().as_bytes());
         }
-        PipelineNode::Filter { input, condition } => {
+        PipelineKind::Filter { input, condition } => {
             hasher.u8(1);
             hash_input(&mut hasher, fingerprints, input)?;
             hash_expression(&mut hasher, condition)?;
         }
-        PipelineNode::Project { input, projection } => {
+        PipelineKind::Project { input, projection } => {
             hasher.u8(2);
             hash_input(&mut hasher, fingerprints, input)?;
             hash_projection(&mut hasher, projection)?;
         }
-        PipelineNode::Aggregate {
+        PipelineKind::Aggregate {
             input,
             groups,
             aggregates,
@@ -135,16 +135,16 @@ fn fingerprint_node(
             }
             hash_type_def(&mut hasher, &aggregates.ty);
         }
-        PipelineNode::Unnest { input } => {
+        PipelineKind::Unnest { input } => {
             hasher.u8(4);
             hash_input(&mut hasher, fingerprints, input)?;
         }
-        PipelineNode::Window { input, window } => {
+        PipelineKind::Window { input, window } => {
             hasher.u8(5);
             hash_input(&mut hasher, fingerprints, input)?;
             hash_window(&mut hasher, window)?;
         }
-        PipelineNode::Sort {
+        PipelineKind::Sort {
             input,
             expression,
             direction,
@@ -157,11 +157,11 @@ fn fingerprint_node(
             });
             hash_expression(&mut hasher, expression)?;
         }
-        PipelineNode::Distinct { input } => {
+        PipelineKind::Distinct { input } => {
             hasher.u8(7);
             hash_input(&mut hasher, fingerprints, input)?;
         }
-        PipelineNode::Slice {
+        PipelineKind::Slice {
             input,
             offset,
             limit,
@@ -177,7 +177,7 @@ fn fingerprint_node(
                 None => hasher.u8(0),
             }
         }
-        PipelineNode::Join {
+        PipelineKind::Join {
             left,
             right,
             kind,
@@ -201,7 +201,7 @@ fn fingerprint_node(
                 None => hasher.u8(0),
             }
         }
-        PipelineNode::Set {
+        PipelineKind::Set {
             left,
             right,
             operator,

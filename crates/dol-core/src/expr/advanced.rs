@@ -118,6 +118,7 @@ impl<T> Expr<Option<T>> {
                     right: fallback.node,
                 },
                 ty: binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             binding,
         )
@@ -153,6 +154,7 @@ impl Expr<Truth> {
                     when_false: when_false.node,
                 },
                 ty: binding.type_def(),
+                fingerprint: std::sync::OnceLock::new(),
             },
             binding,
         )
@@ -175,6 +177,7 @@ where
                     input: self.node,
                 },
                 ty,
+                fingerprint: std::sync::OnceLock::new(),
             },
             binding,
         )
@@ -403,6 +406,7 @@ where
                 negate,
             },
             ty: Truth::type_def(),
+            fingerprint: std::sync::OnceLock::new(),
         },
         Binding::<Truth>::native(),
     )
@@ -419,6 +423,7 @@ fn binary_same<T>(op: BinaryOp, left: Expr<T>, right: Expr<T>) -> Expr<T> {
                 right: right.node,
             },
             ty,
+            fingerprint: std::sync::OnceLock::new(),
         },
         binding,
     )
@@ -433,6 +438,7 @@ fn binary_truth<T>(op: BinaryOp, left: Expr<T>, right: Expr<T>) -> Expr<Truth> {
                 right: right.node,
             },
             ty: Truth::type_def(),
+            fingerprint: std::sync::OnceLock::new(),
         },
         Binding::<Truth>::native(),
     )
