@@ -19,9 +19,27 @@ dol-ml = { path = "../../crates/dol-ml", version = "0.1.0" }
 dol-mongodb = { path = "../../engines/mongodb", version = "0.1.0" }
 dol-postgres = { path = "../../engines/postgres", version = "0.1.0" }
 dol-wire = { path = "../../crates/dol-wire", version = "0.1.0" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.11"
+
+[dev-dependencies]
+criterion = "=0.8.2"
 
 [[bench]]
 name = "roadmap"
+harness = false
+
+[[bench]]
+name = "closure_v1"
+harness = false
+
+[[bench]]
+name = "closure_v1_overlay"
+harness = false
+
+[[bench]]
+name = "explore"
 harness = false
 
 [lints]

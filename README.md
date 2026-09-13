@@ -47,6 +47,10 @@ cargo xtask metrics
 cargo xtask security
 cargo xtask bench-check
 cargo xtask bench
+cargo xtask bench-explore -- <criterion arguments>
+cargo xtask perf-a-a-smoke -- --artifact-dir <directory>
+cargo xtask perf-compare --baseline <revision> --candidate <revision> --profile candidate|release --contract closure-v1 --runner-manifest <manifest> --artifact-dir <directory>
+cargo xtask perf-profile --commit <revision> --scenario <scenario-id> --artifact-dir <directory>
 cargo xtask fuzz-check
 cargo xtask fuzz
 cargo xtask ci
@@ -120,7 +124,7 @@ The Docker fixture is pinned by tag and multi-platform image digest to PostgreSQ
 
 MongoDB live conformance uses `DOL_MONGODB_TEST_URL` with `cargo xtask mongodb-live-external`; CI runs the same test against a pinned MongoDB service. Both live suites compare canonical results with `dol-memory`.
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/SEMANTICS.md`](docs/SEMANTICS.md), [`docs/PHASE_7_POSTGRESQL.md`](docs/PHASE_7_POSTGRESQL.md), [`docs/PHASE_8_MONGODB.md`](docs/PHASE_8_MONGODB.md), [`docs/MIGRATION.md`](docs/MIGRATION.md), [`docs/WIRE.md`](docs/WIRE.md), [`docs/ML.md`](docs/ML.md), [`docs/STABILIZATION.md`](docs/STABILIZATION.md), [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md), and the detailed [`docs/IMPLEMENTATION_REVIEW.md`](docs/IMPLEMENTATION_REVIEW.md).
+See [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/SEMANTICS.md`](docs/SEMANTICS.md), [`docs/PHASE_7_POSTGRESQL.md`](docs/PHASE_7_POSTGRESQL.md), [`docs/PHASE_8_MONGODB.md`](docs/PHASE_8_MONGODB.md), [`docs/MIGRATION.md`](docs/MIGRATION.md), [`docs/WIRE.md`](docs/WIRE.md), [`docs/ML.md`](docs/ML.md), [`docs/STABILIZATION.md`](docs/STABILIZATION.md), [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md), [`docs/PERFORMANCE_CLOSURE.md`](docs/PERFORMANCE_CLOSURE.md), and the detailed [`docs/IMPLEMENTATION_REVIEW.md`](docs/IMPLEMENTATION_REVIEW.md).
 
 ## License
 

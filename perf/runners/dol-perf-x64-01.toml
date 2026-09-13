@@ -1,0 +1,34 @@
+schema = "dol-perf-runner/v1"
+runner_id = "dol-perf-x64-01"
+qualified = false
+arch = "x86_64"
+os = "linux"
+target = "x86_64-unknown-linux-gnu"
+
+# Provisioning must replace the explicit sentinel values and record reviewed
+# calibration evidence before setting `qualified = true`.
+[toolchain]
+rust = "1.98.0"
+
+[cpu]
+model = "UNPROVISIONED"
+physical_cpu = 6
+smt = false
+boost = false
+governor = "performance"
+
+[affinity]
+cpus = [6]
+numa_node = 0
+
+[isolation]
+irq_policy = "UNPROVISIONED"
+concurrent_jobs = 1
+
+[qualification]
+minimum_aa_comparisons = 20
+observed_aa_comparisons = 0
+minimum_calendar_days = 14
+observed_calendar_days = 0
+false_hard_regressions = 0
+known_ab_stable = false

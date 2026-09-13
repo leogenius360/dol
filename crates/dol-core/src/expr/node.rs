@@ -113,3 +113,22 @@ pub(crate) enum BinaryOp {
     IsNotDistinctFrom,
     Coalesce,
 }
+
+#[cfg(all(test, target_arch = "x86_64"))]
+mod performance_layout_contract {
+    use super::ExprNode;
+
+    #[test]
+    fn private_expression_node_layout_is_reviewed_on_x86_64() {
+        assert_eq!(
+            std::mem::size_of::<ExprNode>(),
+            240,
+            "update perf/FOOTPRINT.md with measured impact before changing this expectation"
+        );
+        assert_eq!(
+            std::mem::align_of::<ExprNode>(),
+            16,
+            "update perf/FOOTPRINT.md with measured impact before changing this expectation"
+        );
+    }
+}

@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod perf;
+
 use std::env;
 use std::ffi::OsStr;
 use std::fs;
@@ -56,8 +58,12 @@ fn run() -> Result<(), String> {
         "postgres-live-external" => postgres_live_external(),
         "postgres-down" => postgres_down(),
         "mongodb-live-external" => mongodb_live_external(),
-        "bench" => benchmarks(false, command_arguments),
-        "bench-check" => benchmarks(true, command_arguments),
+        "bench" => canonical_bench(command_arguments),
+        "bench-explore" => exploratory_bench(command_arguments),
+        "bench-check" => bench_check(command_arguments),
+        "perf-compare" => perf::compare(command_arguments),
+        "perf-a-a-smoke" => perf::aa_smoke(command_arguments),
+        "perf-profile" => perf::profile(command_arguments),
         "fuzz-check" => fuzz_check(),
         "fuzz" => fuzz(),
         "ci" => ci(),
@@ -606,44 +612,30 @@ fn cargo<const N: usize>(args: [&str; N]) -> Result<(), String> {
     run_command("cargo", args)
 }
 
-fn benchmarks(check_only: bool, benchmark_args: &[String]) -> Result<(), String> {
-    if check_only {
-        cargo([
-            "bench",
-            "--package",
-            "dol-core",
-            "--bench",
-            "semantic_hot_paths",
-            "--no-run",
-        ])?;
-        cargo([
-            "bench",
-            "--package",
-            "dol-bench",
-            "--bench",
-            "roadmap",
-            "--no-run",
-        ])
-    } else {
-        let historical_only = benchmark_args
-            .windows(2)
-            .any(|pair| pair == ["--suite", "historical"]);
-        if !historical_only {
-            cargo([
-                "bench",
-                "--package",
-                "dol-core",
-                "--bench",
-                "semantic_hot_paths",
-            ])?;
-        }
-        let mut command = Command::new("cargo");
-        command.args(["bench", "--package", "dol-bench", "--bench", "roadmap"]);
-        if !benchmark_args.is_empty() {
-            command.arg("--").args(benchmark_args);
-        }
-        run_prepared_command("cargo", &mut command)
+fn canonical_bench(benchmark_args: &[String]) -> Result<(), String> {
+    let mut command = Command::new("cargo");
+    command.args(["bench", "--package", "dol-bench", "--bench", "closure_v1"]);
+    if !benchmark_args.is_empty() {
+        command.arg("--").args(benchmark_args);
     }
+    run_prepared_command("cargo", &mut command)
+}
+
+fn exploratory_bench(criterion_args: &[String]) -> Result<(), String> {
+    let mut command = Command::new("cargo");
+    command.args(["bench", "--package", "dol-bench", "--bench", "explore"]);
+    if !criterion_args.is_empty() {
+        command.arg("--").args(criterion_args);
+    }
+    run_prepared_command("cargo", &mut command)
+}
+
+fn bench_check(arguments: &[String]) -> Result<(), String> {
+    if !arguments.is_empty() {
+        return Err("`cargo xtask bench-check` does not accept arguments".into());
+    }
+    cargo(["bench", "--workspace", "--no-run"])?;
+    perf::overlay_check()
 }
 
 fn cargo_external<const N: usize>(subcommand: &str, args: [&str; N]) -> Result<(), String> {
@@ -755,9 +747,12 @@ fn help() {
          \n  cargo xtask postgres-live-external explicitly configured external PostgreSQL conformance\
          \n  cargo xtask postgres-down stop and remove the managed PostgreSQL fixture\
          \n  cargo xtask mongodb-live-external explicitly configured MongoDB conformance\
-         \n  cargo xtask bench        run repository benchmark harnesses\
-         \n  cargo xtask bench-check  compile benchmark harnesses without running them\
-         \n                           pass suite/filter/mode/format/output options after `--`\
+         \n  cargo xtask bench        run the canonical closure-v1 benchmark\
+         \n  cargo xtask bench-explore run Criterion diagnostics; pass its args after `--`\
+         \n  cargo xtask bench-check  compile canonical and exploratory benchmark targets\
+         \n  cargo xtask perf-compare paired closure-v1 comparison on a qualified Linux runner\
+         \n  cargo xtask perf-a-a-smoke cross-platform A/A benchmark-contract smoke\
+         \n  cargo xtask perf-profile collect perf/flamegraph/assembly/DHAT/RSS evidence\
          \n  cargo xtask fuzz-check   format + strict-clippy all isolated fuzz targets\
          \n  cargo xtask fuzz         bounded cargo-fuzz smoke campaigns\
          \n  cargo xtask ci           check + security\n"

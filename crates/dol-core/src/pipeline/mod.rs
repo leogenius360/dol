@@ -610,3 +610,22 @@ impl<U: DataType> Pipeline<Option<Vec<U>>> {
         }
     }
 }
+
+#[cfg(all(test, target_arch = "x86_64"))]
+mod performance_layout_contract {
+    use super::PipelineNode;
+
+    #[test]
+    fn private_pipeline_node_layout_is_reviewed_on_x86_64() {
+        assert_eq!(
+            std::mem::size_of::<PipelineNode>(),
+            280,
+            "update perf/FOOTPRINT.md with measured impact before changing this expectation"
+        );
+        assert_eq!(
+            std::mem::align_of::<PipelineNode>(),
+            8,
+            "update perf/FOOTPRINT.md with measured impact before changing this expectation"
+        );
+    }
+}

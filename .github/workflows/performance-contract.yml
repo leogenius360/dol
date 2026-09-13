@@ -1,0 +1,70 @@
+name: performance contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark-contract:
+    name: benchmark contract (hard)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.0
+          components: rustfmt, clippy
+      - name: Verify immutable fixture manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r line; do
+            test "${line:64:2}" = "  "
+            expected=${line:0:64}
+            relative=${line:66}
+            actual=$(tr -d '\r' < "perf/fixtures/closure-v1/$relative" | sha256sum | awk '{print $1}')
+            test "$actual" = "$expected"
+          done < perf/fixtures/closure-v1/MANIFEST.sha256
+          expected_manifest=$(sed -n 's/^fixture_manifest_sha256 = "\([0-9a-f]\{64\}\)"$/\1/p' perf/contracts/closure-v1.toml)
+          actual_manifest=$(tr -d '\r' < perf/fixtures/closure-v1/MANIFEST.sha256 | sha256sum | awk '{print $1}')
+          test "$actual_manifest" = "$expected_manifest"
+      - run: cargo test --package dol-bench
+      - run: cargo test --package xtask
+      - run: cargo test --test performance_milestone
+      - run: cargo test --package dol-wire --test wire
+      - run: cargo test --package dol-core performance_layout_contract
+      - run: cargo xtask bench-check
+
+  hosted-perf-smoke:
+    name: hosted A/A smoke (timing advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.0
+      - name: Exercise workloads and artifact contract
+        run: cargo xtask perf-a-a-smoke -- --artifact-dir target/perf/a-a-smoke
+      - name: Upload advisory smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-a-a-smoke-${{ github.run_id }}
+          path: target/perf/a-a-smoke/
+          if-no-files-found: error
+          retention-days: 14

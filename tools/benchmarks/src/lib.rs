@@ -1,6 +1,23 @@
 #![forbid(unsafe_code)]
 
-//! Small benchmark harness shared by DOL's framework-free benchmark binaries.
+//! Benchmark tooling shared by DOL's canonical and exploratory benchmark binaries.
+//!
+//! The legacy roadmap runner remains available, while the modules below implement
+//! the revision-neutral `closure-v1` performance evidence contract.
+
+pub mod artifact;
+pub mod canonical;
+pub mod comparison;
+pub mod sample;
+pub mod sampling;
+pub mod scenario;
+pub mod statistics;
+pub mod workloads;
+
+/// Stable schema identifier written into every performance artifact.
+pub const PERFORMANCE_SCHEMA: &str = "dol-perf/v1";
+/// Immutable workload/statistics contract implemented by this crate.
+pub const PERFORMANCE_CONTRACT: &str = "closure-v1";
 
 use std::env;
 use std::fmt::Write as _;
@@ -162,7 +179,7 @@ fn next_value(
 /// Command-line help for the roadmap benchmark binary.
 #[must_use]
 pub const fn help() -> &'static str {
-    "usage: cargo xtask bench -- [--suite historical|modern|all] \
+    "usage: cargo bench --package dol-bench --bench roadmap -- [--suite historical|modern|all] \
      [--filter <substring>] [--mode historical-fixed|adaptive] \
      [--format text|csv] [--output <path>]"
 }
@@ -303,7 +320,7 @@ impl Runner {
                 fs::create_dir_all(parent)?;
             }
             fs::write(&path, rendered)?;
-            println!("benchmark report written to {}", path.display());
+            eprintln!("benchmark report written to {}", path.display());
         } else {
             print!("{rendered}");
         }

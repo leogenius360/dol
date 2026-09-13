@@ -1,5 +1,5 @@
 use dol_core::model::{ModelBuilder, ModelSet, Presence};
-use dol_core::types::{ScalarRepr, TypeDef, TypeShape};
+use dol_core::types::{DataType, ScalarRepr, TypeDef, TypeShape};
 use dol_core::value::{Datum, Value};
 use dol_wire::{
     DecodeLimits, HEADER_LEN, MAGIC, PayloadKind, WireErrorKind, decode_envelope, decode_model_def,
@@ -7,8 +7,58 @@ use dol_wire::{
     encode_type_def, encode_type_def_with_limits, encode_typed_datum,
 };
 
+#[allow(dead_code)]
+#[path = "../../../perf/fixtures/closure-v1/fixture.rs"]
+mod closure_fixture;
+
 fn scalar(key: &str, repr: ScalarRepr) -> TypeDef {
     TypeDef::scalar(key, 1, repr)
+}
+
+fn closure_v1_wire_golden() -> [u8; closure_fixture::WIRE_ENCODED_BYTES] {
+    const GOLDEN_HEX: &str =
+        include_str!("../../../perf/fixtures/closure-v1/wire/type-def-vec-optional-string-v1.hex");
+    let encoded = GOLDEN_HEX.trim();
+    assert_eq!(
+        encoded.len(),
+        closure_fixture::WIRE_ENCODED_BYTES * 2,
+        "wire golden must contain 84 bytes"
+    );
+    let mut decoded = [0_u8; closure_fixture::WIRE_ENCODED_BYTES];
+    let (chunks, remainder) = encoded.as_bytes().as_chunks::<2>();
+    assert!(remainder.is_empty(), "wire golden length must be even");
+    for (index, chunk) in chunks.iter().enumerate() {
+        let digits = std::str::from_utf8(chunk).expect("wire golden must be ASCII");
+        decoded[index] = u8::from_str_radix(digits, 16).expect("wire golden must contain only hex");
+    }
+    decoded
+}
+
+#[test]
+fn closure_v1_encoder_matches_the_pinned_84_byte_wire_golden() {
+    let semantic_type = <Vec<Option<String>> as DataType>::type_def();
+    let encoded = encode_type_def(&semantic_type).unwrap();
+    let golden = closure_v1_wire_golden();
+
+    assert_eq!(encoded.len(), closure_fixture::WIRE_ENCODED_BYTES);
+    assert_eq!(closure_fixture::WIRE_SEMANTIC_TYPE, "Vec<Option<String>>");
+    assert_eq!(
+        encoded.as_slice(),
+        golden.as_slice(),
+        "wire-v1 encoder changes require a new contract identifier"
+    );
+}
+
+#[test]
+fn closure_v1_decoder_accepts_the_pinned_golden_as_the_expected_semantic_type() {
+    let golden = closure_v1_wire_golden();
+    let decoded = decode_type_def(&golden, DecodeLimits::default()).unwrap();
+
+    assert_eq!(
+        decoded,
+        <Vec<Option<String>> as DataType>::type_def(),
+        "the pinned decoder input must retain its closure-v1 semantics"
+    );
 }
 
 #[test]

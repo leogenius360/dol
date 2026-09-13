@@ -1,0 +1,353 @@
+schema = "dol-perf-contract/v1"
+contract = "closure-v1"
+evidence_schema = "dol-perf/v1"
+state = "measurement-ready"
+
+baseline_commit = "772f73a553f5806a365e29b799aa18a93bc0e515"
+candidate_commit = "cfbc97f446826875bb13388ad4c0206bc3665c3b"
+candidate_tag = "perf-milestone-cfbc97f"
+ratified_baseline_tag = "perf-baseline-v1"
+
+rust_toolchain = "1.98.0"
+canonical_target = "x86_64-unknown-linux-gnu"
+fixture_manifest = "perf/fixtures/closure-v1/MANIFEST.sha256"
+fixture_manifest_sha256 = "e2171d45d2f9775c77efa8801c710f53fdff700c069c6f8592bea1ee7596d881"
+bootstrap_seed = "444f4c2d636c6f737572652d7631000000000000000000000000000000000000"
+bootstrap_resamples = 100000
+bootstrap_confidence = 0.95
+
+# A comparison checks out each revision with its original Cargo.lock. Dependency
+# drift is part of a revision comparison and both lockfile hashes are recorded.
+lockfile_policy = "original-per-revision"
+
+# An identical measurement overlay may alter only these paths. Runtime source is
+# categorically outside the allowlist.
+allowed_overlay_paths = [
+  "perf/fixtures/closure-v1/**",
+  "tools/benchmarks/**",
+  "Cargo.toml",
+]
+forbidden_overlay_paths = [
+  "crates/**/src/**",
+  "engines/**/src/**",
+]
+
+[wire_fixture]
+semantic_type = "Vec<Option<String>>"
+golden_path = "perf/fixtures/closure-v1/wire/type-def-vec-optional-string-v1.hex"
+encoded_bytes = 84
+major_version = 1
+minor_version = 0
+
+[fingerprint_fixture]
+semantic_input = "historical-expression-v1"
+golden_path = "perf/fixtures/closure-v1/fingerprint/historical-expression-v1.hex"
+algorithm = "DOL canonical expression fingerprint"
+
+[statistics]
+cost_axis = "candidate_ns_per_op / baseline_ns_per_op - 1"
+paired_bootstrap = true
+summary_statistics = ["median", "p10", "p90", "mad", "nmad", "cv", "min", "max"]
+outlier_rule = "tukey-1.5-iqr-retain-all"
+nmad_definition = "mad / abs(median)"
+cv_definition = "population_stddev / abs(mean)"
+
+[decision]
+improvement_median_at_most = -0.10
+improvement_ci_upper_below = 0.0
+warning_median_at_least = 0.03
+hard_regression_median_at_least = 0.05
+hard_regression_ci_lower_above = 0.03
+noisy_nmad_above = 0.05
+noisy_cv_above = 0.10
+noisy_tukey_fraction_above = 0.20
+retry_complete_pair_once = true
+classifications = [
+  "improvement",
+  "neutral",
+  "warning",
+  "hard-regression",
+  "noisy",
+  "inconclusive",
+  "invalid-comparison",
+]
+
+[[profiles]]
+id = "historical-fixed"
+strategy = "fixed-iterations"
+warmup_ms = 0
+samples = 1
+target_sample_ms = 0
+pairs = 0
+
+[[profiles]]
+id = "adaptive"
+strategy = "calibrated"
+warmup_ms = 1000
+samples = 9
+target_sample_ms = 150
+pairs = 0
+
+[[profiles]]
+id = "smoke"
+strategy = "paired"
+warmup_ms = 250
+samples = 5
+target_sample_ms = 50
+pairs = 2
+
+[[profiles]]
+id = "candidate"
+strategy = "paired"
+warmup_ms = 3000
+samples = 20
+target_sample_ms = 300
+pairs = 7
+
+[[profiles]]
+id = "release"
+strategy = "paired"
+warmup_ms = 3000
+samples = 30
+target_sample_ms = 500
+pairs = 10
+
+# Scenario identity is machine-oriented and never derived from display text.
+# Lifecycle is an independent field even when a scale or wire version is part
+# of the stable scenario identifier.
+[[scenarios]]
+id = "expr.construct.basic"
+lifecycle = "cold"
+work_unit_kind = "operation"
+required = true
+
+[[scenarios]]
+id = "expr.prepare.basic"
+lifecycle = "cold"
+work_unit_kind = "operation"
+required = true
+
+[[scenarios]]
+id = "expr.eval.prepared"
+lifecycle = "prepared"
+work_unit_kind = "evaluation"
+required = true
+
+[[scenarios]]
+id = "expr.identity"
+lifecycle = "cold"
+work_unit_kind = "operation"
+required = true
+
+[[scenarios]]
+id = "expr.identity"
+lifecycle = "warm"
+work_unit_kind = "operation"
+required = true
+
+[[scenarios]]
+id = "pipeline.lower"
+lifecycle = "cold"
+work_unit_kind = "operation"
+required = true
+
+[[scenarios]]
+id = "pipeline.lower"
+lifecycle = "warm"
+work_unit_kind = "operation"
+required = true
+
+[[scenarios]]
+id = "pipeline.identity"
+lifecycle = "cold"
+work_unit_kind = "operation"
+required = true
+
+[[scenarios]]
+id = "pipeline.identity"
+lifecycle = "warm"
+work_unit_kind = "operation"
+required = true
+
+[[scenarios]]
+id = "postgres.explain"
+lifecycle = "fresh"
+work_unit_kind = "operation"
+required = true
+
+[[scenarios]]
+id = "postgres.explain"
+lifecycle = "shared-plan"
+work_unit_kind = "operation"
+required = true
+
+[[scenarios]]
+id = "postgres.place"
+lifecycle = "prepared"
+work_unit_kind = "operation"
+required = true
+
+[[scenarios]]
+id = "postgres.compile.sql"
+lifecycle = "prepared"
+work_unit_kind = "operation"
+required = true
+
+[[scenarios]]
+id = "wire.decode.v1.84b"
+lifecycle = "prepared"
+work_unit_kind = "byte"
+required = true
+
+[[scenarios]]
+id = "model.define.runtime"
+lifecycle = "cold"
+work_unit_kind = "field"
+required = true
+
+[[scenarios]]
+id = "mongodb.compile"
+lifecycle = "prepared"
+work_unit_kind = "operation"
+required = true
+
+[[scenarios]]
+id = "migration.plan"
+lifecycle = "fresh"
+work_unit_kind = "operation"
+required = true
+
+[[scenarios]]
+id = "vector.search.exact"
+lifecycle = "prepared"
+work_unit_kind = "candidate"
+required = true
+
+[[scenarios]]
+id = "memory.execute"
+lifecycle = "prepared"
+work_unit_kind = "row"
+required = true
+
+[[scenarios]]
+id = "expr.eval.depth.8"
+lifecycle = "prepared"
+work_unit_kind = "node"
+required = true
+
+[[scenarios]]
+id = "expr.eval.depth.64"
+lifecycle = "prepared"
+work_unit_kind = "node"
+required = true
+
+[[scenarios]]
+id = "expr.eval.depth.256"
+lifecycle = "prepared"
+work_unit_kind = "node"
+required = true
+
+[[scenarios]]
+id = "pipeline.lower.stages.4"
+lifecycle = "cold"
+work_unit_kind = "stage"
+required = true
+
+[[scenarios]]
+id = "pipeline.lower.stages.32"
+lifecycle = "cold"
+work_unit_kind = "stage"
+required = true
+
+[[scenarios]]
+id = "pipeline.lower.stages.256"
+lifecycle = "cold"
+work_unit_kind = "stage"
+required = true
+
+[[scenarios]]
+id = "model.define.width.4"
+lifecycle = "cold"
+work_unit_kind = "field"
+required = true
+
+[[scenarios]]
+id = "model.define.width.64"
+lifecycle = "cold"
+work_unit_kind = "field"
+required = true
+
+[[scenarios]]
+id = "model.define.width.1024"
+lifecycle = "cold"
+work_unit_kind = "field"
+required = true
+
+[[scenarios]]
+id = "wire.decode.typed.1k"
+lifecycle = "prepared"
+work_unit_kind = "byte"
+required = true
+
+[[scenarios]]
+id = "wire.decode.typed.16k"
+lifecycle = "prepared"
+work_unit_kind = "byte"
+required = true
+
+[[scenarios]]
+id = "memory.execute.rows.1"
+lifecycle = "prepared"
+work_unit_kind = "row"
+required = true
+
+[[scenarios]]
+id = "memory.execute.rows.16"
+lifecycle = "prepared"
+work_unit_kind = "row"
+required = true
+
+[[scenarios]]
+id = "memory.execute.rows.256"
+lifecycle = "prepared"
+work_unit_kind = "row"
+required = true
+
+[[scenarios]]
+id = "memory.execute.rows.4096"
+lifecycle = "prepared"
+work_unit_kind = "row"
+required = true
+
+[[scenarios]]
+id = "memory.execute.rows.100000"
+lifecycle = "prepared"
+work_unit_kind = "row"
+required = true
+
+[memory_policy]
+relative_baseline_heap_cap = false
+post_drop_return_required = true
+maximum_large_scale_normalized_growth = 0.25
+required_fields = [
+  "heap_before",
+  "heap_after_construct",
+  "heap_after_cache_fill",
+  "heap_after_drop",
+  "peak_rss",
+  "retained_heap",
+  "alloc_blocks",
+  "alloc_bytes",
+  "bytes_per_node",
+  "bytes_per_stage",
+]
+
+[closure_criteria]
+prepared_evaluation_improvement_at_least = 0.30
+warm_identity_improvement_at_least = 0.10
+postgres_warm_improvement_at_least = 0.10
+maximum_confirmed_cold_regression = 0.05
+maximum_confirmed_collateral_regression = 0.05
+wire_decode_allowed = ["neutral", "accepted", "fixed"]
+dedicated_runner_evidence_required = true
+baseline_ratification_required = true

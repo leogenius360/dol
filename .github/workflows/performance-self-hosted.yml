@@ -1,0 +1,79 @@
+name: dedicated performance comparison
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: Frozen closure-v1 baseline commit
+        required: true
+        default: 772f73a553f5806a365e29b799aa18a93bc0e515
+        type: string
+      candidate:
+        description: Frozen closure-v1 candidate commit or milestone tag
+        required: true
+        default: perf-milestone-cfbc97f
+        type: string
+      profile:
+        description: Immutable sampling profile
+        required: true
+        default: candidate
+        type: choice
+        options:
+          - candidate
+          - release
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dol-perf-evidence-authority
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    name: closure-v1 ${{ inputs.profile }} comparison
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: [self-hosted, linux, x64, dol-perf]
+    timeout-minutes: 360
+    env:
+      DOL_BASELINE: ${{ inputs.baseline }}
+      DOL_CANDIDATE: ${{ inputs.candidate }}
+      DOL_PROFILE: ${{ inputs.profile }}
+      DOL_ARTIFACT_DIR: target/perf/self-hosted-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.0
+      - name: Restrict dispatch to the frozen closure lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$DOL_BASELINE" = "772f73a553f5806a365e29b799aa18a93bc0e515"
+          case "$DOL_CANDIDATE" in
+            cfbc97f446826875bb13388ad4c0206bc3665c3b|perf-milestone-cfbc97f) ;;
+            *) echo "candidate is outside the frozen closure-v1 lineage" >&2; exit 2 ;;
+          esac
+          test "$(git rev-list -n 1 "$DOL_CANDIDATE")" = "cfbc97f446826875bb13388ad4c0206bc3665c3b"
+      - name: Run authoritative paired comparison
+        run: >-
+          cargo xtask perf-compare
+          --baseline "$DOL_BASELINE"
+          --candidate "$DOL_CANDIDATE"
+          --profile "$DOL_PROFILE"
+          --contract closure-v1
+          --runner-manifest perf/runners/dol-perf-x64-01.toml
+          --artifact-dir "$DOL_ARTIFACT_DIR"
+          --enforce
+      - name: Upload complete evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: closure-v1-${{ inputs.profile }}-${{ github.run_id }}
+          path: ${{ env.DOL_ARTIFACT_DIR }}/
+          if-no-files-found: error
+          retention-days: 90

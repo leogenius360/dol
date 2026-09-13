@@ -1,14 +1,61 @@
 # Benchmark Contract
 
-DOL keeps timing informational and correctness gates deterministic. Scheduler
-load, CPU boost state, power policy, compiler changes, and background services
-can move a single run materially; no CI job fails on a throughput threshold.
-The complete implementation, acceptance, replay, and verification record for
-this work is in [PERFORMANCE_MILESTONE.md](PERFORMANCE_MILESTONE.md).
+DOL keeps hosted timing informational and correctness gates deterministic.
+Scheduler load, CPU boost state, power policy, compiler changes, and background
+services can move a hosted run materially. Only paired `closure-v1` evidence
+from a qualified dedicated runner can enforce a performance verdict. The
+measurement and closure rules are in
+[PERFORMANCE_CLOSURE.md](PERFORMANCE_CLOSURE.md); the preceding optimization
+record remains in [PERFORMANCE_MILESTONE.md](PERFORMANCE_MILESTONE.md).
 
-## Running the suites
+The current milestone is **measurement-ready, not performance-closed**.
 
-The repository owns two framework-free optimized benchmark targets:
+## Canonical, exploratory, and comparison interfaces
+
+Use the repository-owned single-revision runner for canonical observations:
+
+```text
+cargo xtask bench
+```
+
+Use Criterion 0.8.2 only for exploratory diagnostics:
+
+```text
+cargo xtask bench-explore -- --warm-up-time 3 evaluator
+```
+
+Criterion output never determines a closure verdict. Compile both systems and
+their contract checks with:
+
+```text
+cargo xtask bench-check
+```
+
+Paired evidence uses:
+
+```text
+cargo xtask perf-compare --baseline 772f73a553f5806a365e29b799aa18a93bc0e515 \
+  --candidate cfbc97f446826875bb13388ad4c0206bc3665c3b \
+  --profile candidate --contract closure-v1 \
+  --runner-manifest perf/runners/dol-perf-x64-01.toml \
+  --artifact-dir target/perf/candidate
+```
+
+The comparator retains ordered samples and writes `metadata.json`,
+`raw-samples.csv`, `summary.json`, and `paired-comparison.json` under the
+`dol-perf/v1` schema. Candidate and release profiles refuse an unqualified or
+mismatched runner. The A/A smoke command is cross-platform and timing-advisory:
+
+```text
+cargo xtask perf-a-a-smoke -- --artifact-dir target/perf/a-a-smoke
+```
+
+For targeted Linux evidence, use `cargo xtask perf-profile`; it collects
+`perf stat`, flamegraph, assembly, DHAT, and RSS outputs where supported.
+
+## Legacy suite details
+
+The repository retains two framework-free optimized diagnostic targets:
 
 - `dol-bench/roadmap` contains the archive-identified, user-attested historical
   fixture equivalents,
@@ -19,12 +66,16 @@ The repository owns two framework-free optimized benchmark targets:
 Use:
 
 ```text
-cargo xtask bench
-cargo xtask bench -- --suite historical --mode historical-fixed
-cargo xtask bench -- --suite modern --filter fingerprint
-cargo xtask bench -- --format csv --output target/benchmarks/dol.csv
+cargo bench --package dol-bench --bench roadmap -- --suite historical --mode historical-fixed
+cargo bench --package dol-bench --bench roadmap -- --suite modern --filter fingerprint
+cargo bench --package dol-bench --bench roadmap -- --format csv --output target/benchmarks/dol.csv
+cargo bench --package dol-core --bench semantic_hot_paths
 cargo xtask bench-check
 ```
+
+These direct targets remain useful for historical context and diagnosis. They
+are not aliases for `cargo xtask bench`, which is reserved for the canonical
+`closure-v1` runner.
 
 The roadmap runner accepts:
 

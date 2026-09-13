@@ -1,0 +1,84 @@
+name: scheduled dedicated performance evidence
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+    - cron: '41 2 * * 0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dol-perf-evidence-authority
+  cancel-in-progress: false
+
+env:
+  DOL_BASELINE: 772f73a553f5806a365e29b799aa18a93bc0e515
+  DOL_CANDIDATE: cfbc97f446826875bb13388ad4c0206bc3665c3b
+  DOL_RUNNER_MANIFEST: perf/runners/dol-perf-x64-01.toml
+
+jobs:
+  nightly-candidate:
+    if: github.event.schedule == '17 2 * * *' && vars.DOL_PERF_RUNNER_QUALIFIED == 'true'
+    runs-on: [self-hosted, linux, x64, dol-perf]
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.0
+      - run: >-
+          cargo xtask perf-compare
+          --baseline "$DOL_BASELINE"
+          --candidate "$DOL_CANDIDATE"
+          --profile candidate
+          --contract closure-v1
+          --runner-manifest "$DOL_RUNNER_MANIFEST"
+          --artifact-dir target/perf/nightly
+          --enforce
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: closure-v1-nightly-${{ github.run_id }}
+          path: target/perf/nightly/
+          if-no-files-found: error
+          retention-days: 90
+
+  weekly-release-and-profile:
+    if: github.event.schedule == '41 2 * * 0' && vars.DOL_PERF_RUNNER_QUALIFIED == 'true'
+    runs-on: [self-hosted, linux, x64, dol-perf]
+    timeout-minutes: 480
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.0
+      - run: >-
+          cargo xtask perf-compare
+          --baseline "$DOL_BASELINE"
+          --candidate "$DOL_CANDIDATE"
+          --profile release
+          --contract closure-v1
+          --runner-manifest "$DOL_RUNNER_MANIFEST"
+          --artifact-dir target/perf/weekly
+          --enforce
+      - name: Collect wire-decode diagnostic evidence
+        if: always()
+        run: >-
+          cargo xtask perf-profile
+          --commit "$DOL_CANDIDATE"
+          --scenario wire.decode.v1.84b
+          --artifact-dir target/perf/weekly/profile-wire-decode
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: closure-v1-weekly-${{ github.run_id }}
+          path: target/perf/weekly/
+          if-no-files-found: error
+          retention-days: 90

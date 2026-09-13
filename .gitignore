@@ -9,3 +9,4 @@
 /fuzz/corpus/*
 !/fuzz/corpus/.gitkeep
 /.dol/
+/dol.zip
