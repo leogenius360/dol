@@ -16,5 +16,5 @@ dol-engine = { path = "../../crates/dol-engine", version = "0.1.0" }
 workspace = true
 
 [dev-dependencies]
-dol = { path = "../../dol" }
+dol = { path = "../../dol", version = "0.1.0" }
 dol-conformance = { path = "../../crates/dol-conformance", version = "0.1.0" }

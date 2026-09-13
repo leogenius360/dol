@@ -3,20 +3,45 @@
 
 extern crate self as dol;
 
-pub mod core;
-pub mod prelude;
+/// Core DOL language re-exports.
+pub mod core {
+    pub use dol_core::*;
+}
+
+/// Common imports for DOL applications.
+pub mod prelude {
+    pub use dol_core::prelude::*;
+
+    #[cfg(feature = "derive")]
+    pub use dol_macros::{Model, Projection};
+
+    #[cfg(feature = "engine")]
+    pub use dol_engine::prelude::*;
+}
 
 #[cfg(feature = "engine")]
-pub mod engine;
+/// Engine SPI re-exports.
+pub mod engine {
+    pub use dol_engine::*;
+}
 
 #[cfg(feature = "migrate")]
-pub mod migrate;
+/// Migration subsystem re-exports.
+pub mod migrate {
+    pub use dol_migrate::*;
+}
 
 #[cfg(feature = "wire")]
-pub mod wire;
+/// Bounded wire subsystem re-exports.
+pub mod wire {
+    pub use dol_wire::*;
+}
 
 #[cfg(feature = "ml")]
-pub mod ml;
+/// AI/ML operation re-exports.
+pub mod ml {
+    pub use dol_ml::*;
+}
 
 pub use dol_core::{
     BoundParameter, Cardinality, DataSet, DataType, DataValue, DateExprExt, Delete,

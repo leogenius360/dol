@@ -12,6 +12,10 @@ allow = [
     "Apache-2.0",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    # MongoDB's root-certificate data and macro dependency use these
+    # permissive SPDX licenses.
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
     "MPL-2.0",

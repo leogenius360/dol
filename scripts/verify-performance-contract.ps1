@@ -76,7 +76,7 @@ if ($actualManifest -ne $expectedManifest) { throw 'fixture manifest hash mismat
 
 Invoke-Cargo fmt --all --check
 Invoke-Cargo check --workspace --all-targets --all-features
-Invoke-Cargo clippy --workspace --all-targets --all-features -- -D warnings
+Invoke-Cargo clippy --workspace --all-targets --all-features '--' '-D' warnings
 Invoke-Cargo test --workspace --all-features
 Invoke-Cargo test --package dol-bench
 Invoke-Cargo test --package xtask

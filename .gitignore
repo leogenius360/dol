@@ -6,7 +6,6 @@
 .vscode/
 *.log
 /fuzz/artifacts/
-/fuzz/corpus/*
-!/fuzz/corpus/.gitkeep
+/fuzz/corpus/
 /.dol/
 /dol.zip

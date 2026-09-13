@@ -9,7 +9,8 @@ repository.workspace = true
 publish = false
 
 [dependencies]
-dol-bench = { path = "../benchmarks" }
+dol-bench = { path = "../benchmarks", version = "0.1.0" }
+pulldown-cmark = { version = "0.13", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"

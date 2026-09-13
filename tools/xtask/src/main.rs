@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod documentation;
 mod perf;
 
 use std::env;
@@ -96,6 +97,8 @@ fn check() -> Result<(), String> {
 }
 
 fn docs() -> Result<(), String> {
+    documentation::validate(&workspace_root().map_err(|error| error.to_string())?)?;
+
     let mut command = Command::new("cargo");
     command.env("RUSTDOCFLAGS", "-D warnings").args([
         "doc",
@@ -736,7 +739,7 @@ fn help() {
          \n  cargo xtask fmt          rustfmt verification\
          \n  cargo xtask lint         clippy with warnings denied\
          \n  cargo xtask test         workspace tests\
-         \n  cargo xtask docs         workspace rustdoc\
+         \n  cargo xtask docs         validate Markdown links + workspace rustdoc\
          \n  cargo xtask api          facade feature-matrix API audit\
          \n  cargo xtask adoption     compile adoption examples and doctests\
          \n  cargo xtask security     cargo-deny checks\

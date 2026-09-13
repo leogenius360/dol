@@ -21,6 +21,6 @@ uuid = { version = "1.18", features = ["std"] }
 workspace = true
 
 [dev-dependencies]
-dol = { path = "../../dol" }
+dol = { path = "../../dol", version = "0.1.0" }
 dol-conformance = { path = "../../crates/dol-conformance", version = "0.1.0" }
 dol-memory = { path = "../memory", version = "0.1.0" }
