@@ -42,7 +42,7 @@ jobs:
           test "$actual_manifest" = "$expected_manifest"
       - run: cargo test --package dol-bench
       - run: cargo test --package xtask
-      - run: cargo test --test performance_milestone
+      - run: cargo test --package dol-bench --test performance_milestone
       - run: cargo test --package dol-wire --test wire
       - run: cargo test --package dol-core performance_layout_contract
       - run: cargo xtask bench-check

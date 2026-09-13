@@ -18,7 +18,7 @@ time = { version = "0.3", features = ["std"] }
 uuid = { version = "1.18", features = ["std"] }
 
 [dev-dependencies]
-dol = { path = "../..", version = "0.1.0" }
+dol = { path = "../../dol", version = "0.1.0" }
 dol-conformance = { path = "../../crates/dol-conformance", version = "0.1.0" }
 dol-memory = { path = "../memory", version = "0.1.0" }
 rust_decimal = { version = "1.37", default-features = false, features = ["std"] }

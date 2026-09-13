@@ -57,7 +57,7 @@ test "$actual_manifest" = "$expected_manifest" || fail "fixture manifest hash mi
 "$cargo_command" test --package dol-bench
 "$cargo_command" test --package xtask
 "$cargo_command" xtask bench-check
-"$cargo_command" test --test performance_milestone
+"$cargo_command" test --package dol-bench --test performance_milestone
 "$cargo_command" test --package dol-wire --test wire
 "$cargo_command" test --package dol-core performance_layout_contract
 aa_root=$(mktemp -d "${TMPDIR:-/tmp}/dol-perf-a-a-verify.XXXXXX")

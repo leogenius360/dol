@@ -10,7 +10,7 @@ description = "Reproducible repository-level benchmarks for DOL"
 publish = false
 
 [dependencies]
-dol = { path = "../..", version = "0.1.0", features = ["derive"] }
+dol = { path = "../../dol", version = "0.1.0", features = ["derive"] }
 dol-core = { path = "../../crates/dol-core", version = "0.1.0" }
 dol-engine = { path = "../../crates/dol-engine", version = "0.1.0" }
 dol-memory = { path = "../../engines/memory", version = "0.1.0" }

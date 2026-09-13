@@ -5,7 +5,7 @@ use dol::core::plan::{LogicalNode, SortDirection};
 use dol::prelude::*;
 
 #[allow(dead_code)]
-#[path = "../perf/fixtures/closure-v1/fixture.rs"]
+#[path = "../../../perf/fixtures/closure-v1/fixture.rs"]
 mod closure_fixture;
 
 #[derive(Clone, Debug, PartialEq, dol::Model)]
@@ -168,7 +168,7 @@ fn decode_hex<const N: usize>(fixture: &str) -> [u8; N] {
 #[test]
 fn closure_v1_expression_fingerprint_is_pinned_independently() {
     const EXPECTED_HEX: &str =
-        include_str!("../perf/fixtures/closure-v1/fingerprint/historical-expression-v1.hex");
+        include_str!("../../../perf/fixtures/closure-v1/fingerprint/historical-expression-v1.hex");
     let expected = decode_hex::<32>(EXPECTED_HEX);
 
     assert_eq!(

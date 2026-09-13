@@ -81,7 +81,7 @@ Invoke-Cargo test --workspace --all-features
 Invoke-Cargo test --package dol-bench
 Invoke-Cargo test --package xtask
 Invoke-Cargo xtask bench-check
-Invoke-Cargo test --test performance_milestone
+Invoke-Cargo test --package dol-bench --test performance_milestone
 Invoke-Cargo test --package dol-wire --test wire
 Invoke-Cargo test --package dol-core performance_layout_contract
 $aaRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("dol-perf-a-a-verify-$PID-$([guid]::NewGuid().ToString('N'))")
