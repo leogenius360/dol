@@ -14,7 +14,7 @@ DataSet<T>  contains concrete/materialized data
 
 There is no separate public `Query`, `Transform`, `GroupedPipeline`, or join-specific pipeline abstraction.
 
-## Current Phase-3 language
+## Current language
 
 The implemented pipeline vocabulary includes:
 
@@ -227,11 +227,54 @@ let running = Pipeline::<User>::from_model().window(
 );
 ```
 
-Ranking requires explicit stable ordering. `row_number` additionally requires a provable total order; Slice 4 proves this conservatively for exactly one visible model source whose identity is still unique in the current rowset and when every declared identity field appears directly in the ordering keys. `union` and `union_all` invalidate that uniqueness proof because they can merge rows with colliding model identities. Exact numeric window sums require an explicit `RowsFrame`; zero-distance preceding/following bounds canonicalize to `CurrentRow`, bounded/current-row frames require the same total-order proof, while `RowsFrame::all()` is order-independent. Nullable inputs use `window_sum_present` so null/missing handling is explicit.
+Ranking requires explicit stable ordering. `row_number` additionally requires a
+provable total order; the current proof is conservative and requires exactly one
+visible model source whose identity remains unique in the rowset and every
+declared identity field to appear directly in the ordering keys. `union` and
+`union_all` invalidate that proof because they can merge rows with colliding
+model identities. Exact numeric window sums require an explicit `RowsFrame`;
+zero-distance preceding/following bounds canonicalize to `CurrentRow`,
+bounded/current-row frames require the same total-order proof, while
+`RowsFrame::all()` is order-independent. Nullable inputs use
+`window_sum_present` so null/missing handling is explicit.
 
 ## Declarative, not imperative
 
 Method order defines semantic dependency, but it does not force the physical engine to execute one imperative stage after another. `logical_plan()` lowers the authoring pipeline to a backend-independent DAG. `LogicalPlan::optimized()` currently performs only directly proven rewrites: identity `offset(0)` elimination and repeated-`distinct` elimination. Optimized topology may shrink while the original canonical semantic fingerprint is preserved. More aggressive rewrites require dedicated equivalence proofs.
+
+## Planning, lowering, and resource safety
+
+The backend-independent logical vocabulary is:
+
+```text
+Source
+Filter
+Project
+Aggregate
+Sort
+Distinct
+Slice
+Join
+Set
+```
+
+The graph is genuinely multi-input. Pipeline clones share immutable authoring
+nodes, and lowering compiles each unique node once in topological dependency
+order. `PlanOutput` distinguishes model values, scalar/structural values,
+products, and nullable outer-join outputs without prescribing physical row
+layout.
+
+`PipelineLimits` bounds unique authoring/logical nodes and carries the
+expression limits applied to every retained projection, filter, sort, join,
+grouping, and aggregate expression. Multi-source authoring graphs are traversed
+iteratively. Engines must apply their own finite execution limits after
+placement; planning does not imply unbounded materialization.
+
+The pipeline layer defines what a computation means, not where it runs. Engine
+placement, physical compilation, and execution are described by the
+[engine SPI](engine-spi.md). Scalar subquery cardinality semantics and more
+aggressive optimizer rules remain explicit future extensions rather than
+implicit backend behavior.
 
 ## Logical plan identity
 

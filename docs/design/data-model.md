@@ -1,6 +1,8 @@
-# Phase 1 — Semantic Foundation
+# Data Model and Semantic Foundation
 
-Phase 1 establishes DOL's storage-independent data semantics. It contains no engine mapping, SQL/BSON, migration catalog, wire decoding, or external I/O. The pre-existing pipeline/write placeholders remain later-phase concerns and do not define Phase-1 semantics.
+DOL's data model defines storage-independent semantics. It contains no engine
+mapping, SQL/BSON, migration catalog, wire decoding, or external I/O. Those
+systems consume this contract without redefining it.
 
 ## Open Rust-first type system
 
@@ -17,7 +19,10 @@ A `TypeDef` separates:
 
 `ScalarRepr` is intentionally closed because it describes canonical scalar representation, not the universe of DOL types. `String`, `Email`, and `Username` may all use the string representation while remaining distinct semantic types. Domain types may also override the default property set inherited from their canonical representation, so sharing storage representation never forces sharing all operations.
 
-Built-in Phase-1 contracts include booleans, signed and unsigned integers through 128 bits, floats, `char`, `String`, UUID, decimal, date/time/instant/duration values, lists, maps, and explicit byte strings. `Vec<u8>` remains a list of `u8`; `Bytes` is the byte-string semantic type.
+Built-in contracts include booleans, signed and unsigned integers through 128
+bits, floats, `char`, `String`, UUID, decimal, date/time/instant/duration values,
+lists, maps, and explicit byte strings. `Vec<u8>` remains a list of `u8`;
+`Bytes` is the byte-string semantic type.
 
 `Option<T>` changes only the outer nullability of `T`. It does not mean that a field may be absent. Collection type identities include nested nullability so, for example, `Vec<String>` and `Vec<Option<String>>` remain different semantic types.
 
@@ -58,14 +63,16 @@ A renamed model or field may preserve its stable key while changing its current 
 
 ## Constraints and relations
 
-Phase 1 provides:
+The data model provides:
 
 - composite model identity;
 - composite uniqueness;
 - referential-integrity constraints;
 - logical relations with one, optional-one, and many cardinality.
 
-Identity fields must be required, non-null, equality-capable, and keyable. Floating-point values remain non-keyable in Phase 1 until DOL's special-value key equivalence is specified with the expression semantics.
+Identity fields must be required, non-null, equality-capable, and keyable.
+Floating-point values remain non-keyable until DOL's special-value key
+equivalence is specified with the expression semantics.
 
 Unique constraints use stable key equality. Null or missing values do not participate in uniqueness.
 
@@ -117,7 +124,57 @@ Dynamic definitions are bounded by `DefinitionLimits`, including field, relation
 
 Invalid definitions and runtime rows return structured `Diagnostic` values with stable category codes such as `TYPE-*`, `MODEL-*`, `FIELD-*`, `CONSTRAINT-*`, `RELATION-*`, `MODELSET-*`, `RUNTIME-*`, and `LIMIT-*`.
 
-## Locked Phase-1 invariants
+## Semantic bindings and contract lock
+
+A semantic data type has three distinct identities:
+
+- Rust type `T`, the compile-time developer type;
+- `TypeKey`, a readable portable lineage key using `namespace/name`;
+- `TypeDef::fingerprint()`, the exact canonical BLAKE3 semantic definition.
+
+`TypeKey` is not a compact hash and does not depend on Rust `type_name`.
+`TypeKey` plus semantic version may have only one coherent non-null value
+definition in a validated type universe. The `dol/*` namespace is reserved for
+DOL-owned built-ins; applications and third-party libraries use namespaces
+they own.
+
+Application-owned types can implement `DataType + DataValue` directly. Foreign
+types that cannot implement those traits because of Rust's orphan rules use:
+
+```text
+SemanticBinding<T>
+    ├── TypeDef
+    └── T -> DatumRef
+```
+
+Static fields declare `#[dol(with = MyBinding)]`; runtime fields use
+`runtime_field_with::<T, MyBinding>()`; parameters use
+`Parameter::<T>::with_binding::<MyBinding>()`; and foreign literals use
+`bind_value::<MyBinding, _>(value)`. The public field type remains `Field<T>`:
+binding providers are semantic metadata, not another generic dimension.
+
+A binding's canonical datum must be a semantic normal form for every operation
+advertised by its `TypeDef`. Generic equality, ordering, hashing, and
+fingerprinting operate on that canonical representation. Case-folded or other
+domain-specific equality must therefore normalize at the binding boundary or
+use an explicit semantic operation. It cannot hide Rust-specific behavior
+behind an otherwise identical `TypeDef`.
+
+`Datum` and `Value` form the one portable value domain. Canonical value
+fingerprints are type-aware and normalize NaN payloads, signed zero, decimal
+scale, unordered maps, and structured values. Expressions reuse this same
+canonicalization path. Reverse materialization uses the explicit
+`DataValue::from_datum` or `SemanticBinding::from_datum` boundary; it is never
+inferred from representation alone.
+
+DOL 0.1 requires `std`, as recorded in
+[ADR-0002](../adr/0002-std-baseline.md). The isolated cargo-fuzz workspace
+exercises bounded runtime model/type definitions and related trust boundaries.
+The fuzz runner requires nightly Rust and a Unix-like host; stable workspace
+checks still compile the fuzz targets. See [Contributing](../../CONTRIBUTING.md)
+for the commands and platform policy.
+
+## Locked invariants
 
 1. `ModelDef` is the canonical immutable logical model representation.
 2. Static and runtime models converge on the same semantic compiler.
@@ -137,3 +194,7 @@ Invalid definitions and runtime rows return structured `Diagnostic` values with 
 16. Model fingerprints depend on canonical semantics, not internal memory layout.
 17. Runtime/dynamic definition construction is bounded.
 18. Invalid semantic state cannot be frozen silently.
+19. Portable identity never depends on `Debug`, display formatting,
+    `type_name`, or pointer/process identity.
+20. Foreign fields, runtime fields, parameters, and literals share one semantic
+    binding contract.

@@ -1,6 +1,6 @@
-# Stage I: MongoDB
+# MongoDB Engine
 
-Stage I implements an exact, bounded MongoDB read adapter over the official
+The MongoDB engine is an exact, bounded read adapter over the official
 synchronous Rust driver. It does not treat MongoDB behavior as DOL semantics:
 the adapter advertises only operations for which it supplies an exact lowering.
 

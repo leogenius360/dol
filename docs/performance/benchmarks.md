@@ -4,11 +4,16 @@ DOL keeps hosted timing informational and correctness gates deterministic.
 Scheduler load, CPU boost state, power policy, compiler changes, and background
 services can move a hosted run materially. Only paired `closure-v1` evidence
 from a qualified dedicated runner can enforce a performance verdict. The
-measurement and closure rules are in
-[PERFORMANCE_CLOSURE.md](PERFORMANCE_CLOSURE.md); the preceding optimization
-record remains in [PERFORMANCE_MILESTONE.md](PERFORMANCE_MILESTONE.md).
+measurement and closure rules are in [the closure-v1 contract](closure-v1.md);
+the preceding optimization record remains in the historical
+[2026-09-01 milestone report](../history/performance-milestone-2026-09-01.md).
 
 The current milestone is **measurement-ready, not performance-closed**.
+
+Measurements are observations, not portable thresholds. Representation changes
+must be compared on the same machine and toolchain and must retain semantic and
+adversarial tests. The canonical closure workflow, not a hosted Criterion run,
+owns acceptance verdicts.
 
 ## Canonical, exploratory, and comparison interfaces
 

@@ -4,6 +4,8 @@
 
 DOL is a Rust-native semantic language for querying, transforming, analyzing, computing on, changing, streaming, and intelligently processing data. Execution placement is a separate concern.
 
+![DOL architecture overview](../assets/architecture.png)
+
 ## Non-negotiable boundaries
 
 1. `dol-core` defines **what an operation means**.
@@ -42,7 +44,11 @@ Pipeline<T> symbolically computes data
 DataSet<T>  contains concrete/materialized data
 ```
 
-`Query` and `Transform` are roles/terminology, not parallel public Rust abstractions. A pipeline is declarative and lowers to a logical DAG; it must not be implemented as an imperative linear stage runner. Unary, join, and set topology stay behind the same `Pipeline<T>` abstraction. See `PIPELINE.md`.
+`Query` and `Transform` are roles/terminology, not parallel public Rust
+abstractions. A pipeline is declarative and lowers to a logical DAG; it must not
+be implemented as an imperative linear stage runner. Unary, join, and set
+topology stay behind the same `Pipeline<T>` abstraction. See the
+[pipeline guide](pipelines.md).
 
 ## Execution lifecycle
 
@@ -80,7 +86,14 @@ typed decode
 optional bounded residual execution
 ```
 
-Stage F deliberately avoids a universal physical IR. Engines consume validated logical plans through an exact-capability SPI and may introduce backend-private physical forms only when execution makes them measurable. The memory reference engine executes the complete currently defined logical operator set and remains the normative differential oracle. Stage G adds a narrower rooted JSONL adapter that advertises only the streaming-safe source/filter/project/unnest/slice subset and rejects global or multi-source semantics rather than buffering them implicitly. Stages H and I add PostgreSQL and MongoDB with adapter-owned physical mappings and backend-private SQL/BSON compilers; a hidden read-only prepared-expression view exists solely so engine crates can compile semantics without exposing authoring IR or parsing display strings. Concrete node-aware capability checks prevent a broad operator-family claim from placing an unsupported type or expression remotely.
+The architecture deliberately avoids a universal physical IR. Engines consume
+validated logical plans through an [exact-capability SPI](engine-spi.md) and may
+introduce backend-private physical forms only when execution makes them
+measurable. The memory engine remains the normative differential oracle. JSONL,
+PostgreSQL, and MongoDB expose narrower adapter-owned mappings and compilers and
+reject semantics outside their advertised surfaces. A hidden read-only
+prepared-expression view exists solely so engine crates can compile semantics
+without exposing authoring IR or parsing display strings.
 ## Expression kernel
 
 The public expression language follows two invariants:
@@ -94,7 +107,14 @@ Authoring expressions lower into a private flat prepared representation before e
 
 ## Semantic contract baseline
 
-DOL 0.1 requires `std` and uses Rust types as the public static type system while `TypeDef` provides portable semantic meaning after Rust generic information is erased. `TypeKey` identifies semantic lineage; exact canonical definitions use full BLAKE3 fingerprints. Foreign Rust types are adapted through `SemanticBinding<T>` rather than `type_name`, `Debug`, or a closed extension enum. See `PHASE_1_5_SEMANTIC_CONTRACT.md` and ADR-0001/0002.
+DOL 0.1 requires `std` and uses Rust types as the public static type system while
+`TypeDef` provides portable semantic meaning after Rust generic information is
+erased. `TypeKey` identifies semantic lineage; exact canonical definitions use
+full BLAKE3 fingerprints. Foreign Rust types are adapted through
+`SemanticBinding<T>` rather than `type_name`, `Debug`, or a closed extension
+enum. See the [data-model contract](data-model.md) and
+[ADR-0001](../adr/0001-semantic-contract-lock.md) /
+[ADR-0002](../adr/0002-std-baseline.md).
 
 ## Type-owned expression APIs
 

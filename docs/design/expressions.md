@@ -1,6 +1,10 @@
-# Phase 2 — Typed Expression Language
+# Expression API and Design
 
-Phase 2 turns the Phase-1 semantic foundation into executable symbolic DOL expressions.
+DOL expressions turn the [data-model contract](data-model.md) into executable,
+typed symbolic computations. This guide describes the public API, preparation,
+and extension design. [Normative DOL semantics](semantics.md) remains the source
+of truth for truth tables, normalization, equality, ordering, writes, and
+pipeline behavior.
 
 ## Public contract
 
@@ -43,17 +47,25 @@ Preparation performs:
 4. model/field scope binding;
 5. lowering to a private flat prepared representation.
 
-Prepared field references are reduced internally to pipeline-local scope and dense field-slot handles. These IDs are private compiler mechanics and are not part of DOL's public vocabulary.
-
-while semantic fingerprints continue to use stable `ModelKey` + `FieldKey`, never local IDs or slots.
+Prepared field references are reduced internally to pipeline-local scope and
+dense field-slot handles. These IDs are private compiler mechanics and are not
+part of DOL's public vocabulary, while semantic fingerprints continue to use
+stable `ModelKey` + `FieldKey`, never local IDs or slots.
 
 ## Literals
 
-Expression literals use Phase 1's canonical `Datum`/`Value` representation. `Debug`, `type_name`, pointer identity, backend SQL/BSON types, and display formatting are not semantic encodings.
+Expression literals use the data model's canonical `Datum`/`Value`
+representation. `Debug`, `type_name`, pointer identity, backend SQL/BSON types,
+and display formatting are not semantic encodings.
 
 Application-defined `DataType + DataValue` domain types therefore remain first-class expression literals while retaining their own `TypeDef`.
 
-Foreign Rust types use the Phase-1.5 `SemanticBinding<T>` contract. A bound static field, runtime field, parameter, and literal all carry the same semantic definition without adding a second generic parameter to `Field<T>` or `Expr<T>`. Explicit foreign literals use `bind_value::<Binding, _>(value)`. This keeps Rust's type as the public type while making the erased semantic type deterministic and portable.
+Foreign Rust types use the `SemanticBinding<T>` contract. A bound static field,
+runtime field, parameter, and literal all carry the same semantic definition
+without adding a second generic parameter to `Field<T>` or `Expr<T>`. Explicit
+foreign literals use `bind_value::<Binding, _>(value)`. This keeps Rust's type as
+the public type while making the erased semantic type deterministic and
+portable.
 
 ## Parameters
 
@@ -63,7 +75,7 @@ Foreign Rust types use the Phase-1.5 `SemanticBinding<T>` contract. A bound stat
 
 The local evaluator consumes the same prepared expression representation future engines will compile. There is no second closure-based semantics path. General expressions expose `evaluate_datum(...)` because missing/null/value state is orthogonal to the Rust value type; `Expr<Truth>` and `PreparedExpr<Truth>` additionally expose `evaluate_truth(...)`.
 
-Current Phase-2 operations include:
+Current operations include:
 
 - equality and inequality;
 - null-safe `is_distinct_from` / `is_not_distinct_from`;
@@ -80,12 +92,14 @@ Current Phase-2 operations include:
 - deterministic temporal component/epoch/duration extraction;
 - typed parameters.
 
-This phase deliberately does not introduce pipeline-plan topology, joins as plan nodes, grouping, projections, aggregates, windows, or backend execution. Those belong to the next pipeline/logical-plan phase.
+The expression layer deliberately does not introduce pipeline topology, joins
+as plan nodes, grouping, projection, aggregation, windows, or backend
+execution. Those belong to the [pipeline and logical-plan layer](pipelines.md).
 
 
 ## Numeric conversion policy
 
-Phase 2 deliberately defines no implicit cross-type numeric promotion. Arithmetic operands must have identical semantic types. Developers can request an explicit `cast::<U>()`, but the current cast contract accepts only conversions that are lossless for every possible source value, such as widening signed/unsigned integers, unsigned-to-wider-signed integer conversion, and `f32` to `f64`. Narrowing, rounding, truncating, saturating, or otherwise lossy conversions require a future explicit conversion policy rather than inheriting Rust, SQL, BSON, or driver behavior by accident. Nullable numeric casts must preserve nullability.
+DOL deliberately defines no implicit cross-type numeric promotion. Arithmetic operands must have identical semantic types. Developers can request an explicit `cast::<U>()`, but the current cast contract accepts only conversions that are lossless for every possible source value, such as widening signed/unsigned integers, unsigned-to-wider-signed integer conversion, and `f32` to `f64`. Narrowing, rounding, truncating, saturating, or otherwise lossy conversions require a future explicit conversion policy rather than inheriting Rust, SQL, BSON, or driver behavior by accident. Nullable numeric casts must preserve nullability.
 
 ## Conditional and coalesce evaluation
 
@@ -104,7 +118,7 @@ Unicode-dependent lowercase/uppercase/trim operations also include Rust's Unicod
 
 ## Type-owned expression APIs
 
-`Field<T>` should feel like symbolic `T`, but it is not an actual `T` and cannot safely `Deref` to one. Phase 2 therefore exposes `ExprSource`, implemented by fields, runtime fields, parameters, and expressions. Semantic types attach symbolic methods through extension traits over that source contract.
+`Field<T>` should feel like symbolic `T`, but it is not an actual `T` and cannot safely `Deref` to one. DOL therefore exposes `ExprSource`, implemented by fields, runtime fields, parameters, and expressions. Semantic types attach symbolic methods through extension traits over that source contract.
 
 `ExprSource::expression(&self)` provides a cheap borrowed symbolic conversion so expression APIs can follow the receiver conventions of the Rust type instead of consuming symbolic values unnecessarily. `into_expression(self)` remains available for operations whose Rust counterpart consumes the receiver. For example, string inspection/transformation methods borrow the symbolic source, while integer-style value operations may still consume it.
 
@@ -128,7 +142,7 @@ A genuinely primitive operation defines a `SemanticFunction` and wraps `call1`/`
 
 ## Semantic functions
 
-Phase 2 closes the gap between hard-coded operators and future extension functions with a portable function identity contract:
+Portable function identity closes the gap between hard-coded operators and extension functions with this contract:
 
 ```text
 FunctionKey
@@ -146,7 +160,7 @@ Contextual     result may depend on explicit evaluation context
 Volatile       repeated evaluation may differ even within one context
 ```
 
-Only deterministic functions are authorable in Phase 2, including custom `SemanticFunction` implementations. Normalization may constant-fold only deterministic function calls whose arguments are all literals. Contextual and volatile classifications are reserved for the future explicit evaluation-context contract; Phase 2 does not implicitly read the system clock, random generator, locale, timezone, or process environment.
+Only deterministic functions are currently authorable, including custom `SemanticFunction` implementations. Normalization may constant-fold only deterministic function calls whose arguments are all literals. Contextual and volatile classifications are reserved for the future explicit evaluation-context contract; DOL does not implicitly read the system clock, random generator, locale, timezone, or process environment.
 
 Text case conversion and Unicode-whitespace trimming record Rust's Unicode database version as a semantic dependency in the function definition. A Unicode-table change therefore changes the expression fingerprint rather than silently reusing an older semantic identity.
 
@@ -165,7 +179,7 @@ Domain types merely represented as strings do not inherit these operations autom
 
 ## Temporal semantics
 
-Phase 2 deliberately keeps temporal operations small and unambiguous:
+The expression API deliberately keeps temporal operations small and unambiguous:
 
 - `Date` is a calendar date whose symbolic API mirrors portable `time::Date` methods such as `year`, `month`, `day`, `ordinal`, and `weekday`; `month` and `weekday` preserve the Rust domain types `time::Month` and `time::Weekday`;
 - `PrimitiveDateTime` is a local date/time with **no timezone or offset** and exposes only `date` and `time` extraction;
@@ -173,8 +187,8 @@ Phase 2 deliberately keeps temporal operations small and unambiguous:
 - `Duration::whole_seconds` returns signed complete seconds and does not round to the nearest second;
 - nullable temporal expressions preserve null/missing state through these functions.
 
-Phase 2 intentionally does not guess timezone conversion, daylight-saving behavior, calendar arithmetic, temporal truncation, or a "current time" source. Those require explicit semantics before they can be added.
+DOL intentionally does not guess timezone conversion, daylight-saving behavior, calendar arithmetic, temporal truncation, or a "current time" source. Those require explicit semantics before they can be added.
 
 ## Normalization equivalence gate
 
-The Phase-2 closure suite evaluates representative arithmetic, membership, conditional, text-function, temporal-function, and mixed expressions both before and after normalization. The normalized expression must produce the same canonical `Datum` and the same semantic fingerprint. This is the first conformance layer that future optimizer rewrites must preserve.
+The expression closure suite evaluates representative arithmetic, membership, conditional, text-function, temporal-function, and mixed expressions both before and after normalization. The normalized expression must produce the same canonical `Datum` and the same semantic fingerprint. This is the first conformance layer that future optimizer rewrites must preserve.

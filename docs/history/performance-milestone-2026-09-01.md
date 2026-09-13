@@ -1,5 +1,10 @@
 # Baseline-Identified Performance Milestone Report
 
+> **Historical snapshot.** This report records the optimization milestone at
+> candidate revision `cfbc97f` on 2026-09-01. It is not closure-v1 acceptance;
+> current status and evidence rules live in the
+> [reproducible closure contract](../performance/closure-v1.md).
+
 ## Outcome
 
 This follow-up milestone starts from clean commit `772f73a` and leaves roadmap

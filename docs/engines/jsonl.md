@@ -1,8 +1,8 @@
-# Phase 6 — Bounded Incremental JSONL Execution
+# JSONL Engine
 
-Stage G introduces the first file-backed DOL engine. It is deliberately narrower than the
-memory reference engine: the goal is to prove a secure incremental execution boundary, not to
-reimplement global relational operators by buffering whole files invisibly.
+The JSONL adapter is deliberately narrower than the memory reference engine. It
+provides a secure incremental execution boundary without reimplementing global
+relational operators by invisibly buffering whole files.
 
 ## Boundary
 
@@ -33,13 +33,13 @@ root after canonical/symlink resolution. The path is canonicalized again when ex
 stream, so a source changed after binding is rechecked before it can be read. This prevents ordinary
 `..` traversal and symlink escapes from turning model configuration into arbitrary filesystem reads.
 
-The Stage-G default physical mapping uses each field's current logical name as the JSON object key.
+The default physical mapping uses each field's current logical name as the JSON object key.
 Stable DOL field keys remain semantic identity; JSON property naming is a physical adapter concern.
 Explicit per-field physical mappings can be added later without changing model or pipeline identity.
 
 ## Exact incremental capability set
 
-Stage G advertises `ExactNative` only for operators that can be processed row-by-row with bounded
+The adapter advertises `ExactNative` only for operators that can be processed row-by-row with bounded
 state:
 
 - model source;
@@ -139,7 +139,7 @@ absence of named model/record fields.
 
 ## Differential conformance
 
-The Stage-G suite executes the same parameterized filter/project/slice pipeline through `dol-jsonl`
+The JSONL suite executes the same parameterized filter/project/slice pipeline through `dol-jsonl`
 and the complete `dol-memory` reference engine and requires identical `ExecutionRow` results.
 Additional fixtures cover pull batching, cancellation, unnest, missing/null distinction, duplicate
 and unknown key rejection, path confinement, hard line limits, and unsupported placement.

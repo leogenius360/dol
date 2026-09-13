@@ -23,6 +23,10 @@ The core rule is simple:
 
 `dol-core` owns models, fields, expressions, pipelines, analytics, writes, local data, runtime models, logical semantics, plans, and fingerprints. It is intentionally **not** split into `dol-model`, `dol-expr`, `dol-pipeline`, `dol-data`, or `dol-ir` crates.
 
+The repository root is a virtual Cargo workspace. The publishable `dol` facade,
+including its source, integration tests, and runnable examples, lives in
+[`dol/`](dol/).
+
 ## Toolchain
 
 - Rust 1.98.0
@@ -106,7 +110,13 @@ Pipeline<T> symbolically computes data
 DataSet<T>  contains concrete/materialized data
 ```
 
-There is no separate public `Query` or `Transform` abstraction. Phase 3 now lowers storage-independent model pipelines into a validated logical DAG with filtering, scalar/tuple/named-record projection, global and grouped aggregation, semantic ordering, distinct, slicing, explicit source aliases, inner/cross/outer joins, set operations, composable existential truth expressions with correlation inferred from ordinary `filter(...)` scope, list unnesting, and deterministic initial window computation. Expressions retained by the plan are the same normalized/prepared semantic expressions used by local evaluation, with canonical source-occurrence binding and explicit nullable-scope lifting for multi-source plans.
+There is no separate public `Query` or `Transform` abstraction. DOL lowers
+storage-independent model pipelines into a validated logical DAG with filtering,
+projection, aggregation, ordering, slicing, aliases, joins, set operations,
+existential correlation, list unnesting, and deterministic window computation.
+Expressions retained by the plan are the same normalized/prepared semantic
+expressions used by local evaluation, with canonical source-occurrence binding
+and explicit nullable-scope lifting for multi-source plans.
 
 Scalar/cardinality-sensitive subqueries, broader total-order proofs, and aggressive decorrelation/pushdown remain explicit future extensions. The implemented roadmap includes the complete current memory operator/write/transaction oracle, rooted handle-pinned JSONL execution, exact PostgreSQL and MongoDB read adapters, guarded catalog migration, canonical bounded wire encoding, vector/inference semantics, and stabilization policy for limits, caching, benchmarks, API features, adoption examples, security, and fuzzing.
 
@@ -124,7 +134,10 @@ The Docker fixture is pinned by tag and multi-platform image digest to PostgreSQ
 
 MongoDB live conformance uses `DOL_MONGODB_TEST_URL` with `cargo xtask mongodb-live-external`; CI runs the same test against a pinned MongoDB service. Both live suites compare canonical results with `dol-memory`.
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/SEMANTICS.md`](docs/SEMANTICS.md), [`docs/PHASE_7_POSTGRESQL.md`](docs/PHASE_7_POSTGRESQL.md), [`docs/PHASE_8_MONGODB.md`](docs/PHASE_8_MONGODB.md), [`docs/MIGRATION.md`](docs/MIGRATION.md), [`docs/WIRE.md`](docs/WIRE.md), [`docs/ML.md`](docs/ML.md), [`docs/STABILIZATION.md`](docs/STABILIZATION.md), [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md), [`docs/PERFORMANCE_CLOSURE.md`](docs/PERFORMANCE_CLOSURE.md), and the detailed [`docs/IMPLEMENTATION_REVIEW.md`](docs/IMPLEMENTATION_REVIEW.md).
+Start with the [documentation index](docs/README.md),
+[architecture](docs/design/architecture.md), and
+[normative semantics](docs/design/semantics.md). Contributor workflows and
+environment-dependent gates are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

@@ -1,10 +1,12 @@
-# Phase 7 — PostgreSQL
+# PostgreSQL Engine
 
-Stage H is deliberately sliced so DOL never claims database semantics before the corresponding physical and runtime contracts are reviewable, bounded, and testable.
+The PostgreSQL adapter keeps its physical compiler, bounded runtime, and live
+differential proof explicit so DOL never claims database semantics without a
+reviewable and testable contract.
 
-## Slice 1 — physical mapping and offline exact compiler
+## Physical mapping and offline exact compiler
 
-Implemented in Slice 1:
+The offline compiler provides:
 
 - adapter-owned `PostgresCatalog`, `TableMapping`, and `ColumnMapping`;
 - fully quoted PostgreSQL identifiers with a conservative 63-byte portability cap; logical model/field names are never interpolated as SQL identifiers implicitly;
@@ -63,7 +65,14 @@ For the current live-verification contract, an optional non-null field must use 
 
 ## Bind and transport policy
 
-DOL values never appear directly in generated SQL. Every expression literal or runtime parameter that reaches SQL becomes two placeholders: `$n::smallint` for the DOL datum state (`Missing=0`, `Null=1`, `Value=2`) and a second typed value slot. The value slot remains present even for `Missing`/`Null`, giving one stable prepared-statement shape for every runtime state of the same semantic parameter. Runtime parameters may carry all three states through a typed semantic binding. Expression literals retain the Phase-2 rule that Missing is field/presence state rather than a standalone literal value.
+DOL values never appear directly in generated SQL. Every expression literal or
+runtime parameter that reaches SQL becomes two placeholders: `$n::smallint` for
+the DOL datum state (`Missing=0`, `Null=1`, `Value=2`) and a second typed value
+slot. The value slot remains present even for `Missing`/`Null`, giving one stable
+prepared-statement shape for every runtime state of the same semantic parameter.
+Runtime parameters may carry all three states through a typed semantic binding.
+Expression literals retain the normative rule that Missing is field/presence
+state rather than a standalone literal value.
 
 The runtime makes that parameter contract explicit at the driver boundary. Each encoded bind carries the PostgreSQL type used to serialize it; execution performs a typed prepare, checks the prepared statement's parameter arity, and binds one PostgreSQL portal inside a read-only transaction with the already-typed values. Each DOL pull fetches a positive portal page capped at 1,024 physical rows with `query_portal`, fully completes that driver operation, decodes only the logical rows admitted by the current batch/byte limits, and retains at most the bounded fetched page for the next pull. No synchronous driver `RowIter` remains suspended while the DOL worker waits for another pull command. Wide signed integers, unsigned integers, and decimals continue to bind as `text` because the compiled SQL performs the exact `text -> numeric` conversion. This avoids leaving parameter OID inference to execution while mapping PostgreSQL's native portal paging directly onto DOL's pull/backpressure contract.
 
@@ -73,9 +82,9 @@ PostgreSQL `LIMIT`/`OFFSET` are bounded by its signed bigint execution domain. D
 
 Native PostgreSQL time/timestamp types remain unsupported because their microsecond precision would silently narrow DOL nanosecond-capable values.
 
-## Slice 2A — bounded read runtime
+## Bounded read runtime
 
-Implemented on top of the Slice-1 compiler:
+The runtime builds on the offline compiler with:
 
 - `PostgresEngine::with_runtime(catalog, runtime)` explicitly enables network execution while preserving the offline `new(...)` constructor;
 - `PostgresRuntimeConfig` accepts PostgreSQL connection configuration only when `sslmode=require` is explicit;
@@ -112,9 +121,11 @@ slice    = ExactNative
 
 All other pipeline operators remain unsupported. All write and transaction capabilities remain unsupported. A compiler rejection still wins for an unsupported expression inside an otherwise supported operator; the adapter never substitutes approximate SQL.
 
-## Slice 2B — live differential gate
+## Live differential gate
 
-The Slice-2B harness is implemented. It deliberately adds no capability breadth: its purpose is to prove the advertised read runtime against a real PostgreSQL server and the `dol-memory` semantic oracle.
+The live harness deliberately adds no capability breadth: its purpose is to
+prove the advertised read runtime against a real PostgreSQL server and the
+`dol-memory` semantic oracle.
 
 The reusable `dol-conformance::differential` layer compares canonical typed datum fingerprints rather than Rust `PartialEq`, so NaN payloads, signed zero, decimal normalization, structured values, and model-field semantics are compared according to DOL contracts. It supports both ordered stream comparison and unordered multiset comparison for plans that establish no result ordering. Backend batch boundaries are non-semantic.
 
@@ -122,7 +133,7 @@ The ignored `dol-postgres` live suite creates a fresh isolated schema for each c
 
 1. `Missing` / `Null` / `Value` reconstruction for required, optional, nullable, and optional-nullable model fields;
 2. bool/truth, every signed and unsigned integer width, decimal, float edge cases (`NaN`, infinities, signed zero), UTF-8 text comparison, bytes, UUID, char, and date values currently accepted by the compiler;
-3. runtime parameters in `Missing`, `Null`, and `Value` states with one stable SQL/placeholder shape; expression literals continue to obey the Phase-2 rule that Missing is not a standalone literal;
+3. runtime parameters in `Missing`, `Null`, and `Value` states with one stable SQL/placeholder shape; expression literals continue to obey the rule that Missing is not a standalone literal;
 4. model, scalar, tuple, and named-record projection decoding plus singleton slice behavior;
 5. pull batching, cancellation, row/byte materialization bounds, and a real PostgreSQL `statement_timeout` failure induced by a conflicting table lock;
 6. deliberately incompatible live schemas proving validation fails before any result stream is exposed.
@@ -140,8 +151,11 @@ The managed setup uses `infra/postgres-test/compose.yaml` to build a digest-pinn
 
 For an external database, use `cargo xtask postgres-live-external` with `DOL_POSTGRES_TEST_URL=postgresql://.../?sslmode=require`; if it uses a private CA, also set `DOL_POSTGRES_TEST_CA` to a PEM CA file. `PostgresRuntimeConfig::with_trusted_ca_pem` / `with_trusted_ca_file` add that CA while retaining normal platform roots and hostname verification. On PowerShell, set the same variables through `$env:...`. Connection URLs are never printed by the xtask. The normal `cargo xtask check` compiles the live test target under Clippy/tests but does not execute ignored network tests.
 
-Slice 2B is considered locked only after `cargo xtask postgres-live` passes against a real PostgreSQL instance. Only then should Stage H broaden into checked arithmetic/functions or additional relational operators.
+The live boundary is verified only when `cargo xtask postgres-live` passes
+against a real PostgreSQL instance. Capability breadth must not expand into
+checked arithmetic/functions or additional relational operators without the
+same proof.
 
-## Later Stage H slices
+## Future extensions
 
 Writes and transactions are intentionally separate from the read-runtime gate. `insert`, bulk insert, update, delete, explicit transactions, atomic write behavior, and serializable transaction semantics must each be implemented and differentially proven before their corresponding capabilities are advertised.

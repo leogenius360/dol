@@ -1,5 +1,10 @@
 # Implementation and Repository Review
 
+> **Historical snapshot.** Counts, findings, and command results below were
+> recorded on 2026-08-31 at revision `772f73a`; they are intentionally not
+> current repository metrics. See the [documentation index](../README.md) for
+> maintained contracts.
+
 Review date: 2026-08-31. Scope: every workspace crate, engine adapter, test family,
 workflow, repository task, and roadmap stage.
 
@@ -146,7 +151,8 @@ The optimized adaptive benchmark runners now use nine calibrated samples per
 workload. The final core invocation observed 3.65 µs for a 48-level nested-type
 validation and 0.88 µs for a representative string-datum fingerprint. The
 cross-crate baseline comparison and added engine, wire, migration, vector, and
-memory measurements are recorded in [`BENCHMARKS.md`](BENCHMARKS.md).
+memory measurements are recorded in the current
+[benchmark contract](../performance/benchmarks.md).
 
 Docker was unavailable in the review environment, so the seven PostgreSQL and one
 MongoDB live tests were not executed locally. Their binaries compiled, PostgreSQL has

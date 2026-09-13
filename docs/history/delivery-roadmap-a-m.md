@@ -1,5 +1,9 @@
 # Delivery Roadmap
 
+> **Historical snapshot (2026-08-31).** This completed A-M delivery record is
+> preserved as observed at revision `772f73a`. For current documentation, use
+> the [documentation index](../README.md).
+
 All planned stages are implemented. “Complete” means the repository contains the
 specified semantic contract, bounded implementation, tests, and automation. Remote
 adapters advertise only the subset they reproduce exactly; unsupported operations

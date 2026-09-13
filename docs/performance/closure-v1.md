@@ -56,7 +56,7 @@ footprint reduction, with semantic parity and no related regression above 5%.
 
 ## Workload ABI
 
-[`perf/contracts/closure-v1.toml`](../perf/contracts/closure-v1.toml) is the
+[`perf/contracts/closure-v1.toml`](../../perf/contracts/closure-v1.toml) is the
 normative contract. It freezes:
 
 - stable scenario IDs and separate lifecycle labels;
@@ -191,7 +191,7 @@ On x86-64, public `Expr<Truth>` and `Pipeline<T>` handles are hard-pinned to 24
 and 8 bytes. Private `ExprNode` and `PipelineNode` compiler measurements are
 review gates rather than API. Their current 240-byte/16-byte-aligned and
 280-byte/8-byte-aligned values are documented in
-[`perf/FOOTPRINT.md`](../perf/FOOTPRINT.md). A private change requires an
+[`perf/FOOTPRINT.md`](../../perf/FOOTPRINT.md). A private change requires an
 explicit pin update, footprint analysis, and benchmark evidence.
 
 ## Memory policy

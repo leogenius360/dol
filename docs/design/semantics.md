@@ -1,6 +1,7 @@
 # Normative DOL Semantics
 
-Status: **Phases 1, 1.5, and 2 are verified. Phase 3 has locked projection, multi-source, reduction, outer joins, existential correlation, unnesting, deterministic initial windows, and conservative optimizer equivalence through Slice 4.**
+Status: **This is the current normative contract for models, expressions,
+pipelines, writes, and exact engine behavior.**
 
 ## Core rule
 
@@ -44,7 +45,7 @@ Unknown  -> reject row
 The expression evaluator and every exact backend adapter must ultimately conform to the same rule. Adjacent pipeline filters are one declarative conjunction: `filter(a).filter(b)` is semantically identical to `filter(a.and(b))` and does not promise short-circuit or stage-by-stage evaluation order.
 
 
-## Phase 2 expression rules
+## Expression rules
 
 The expression implementation currently locks these semantics:
 
@@ -77,7 +78,15 @@ Portable expression functions are identified by `FunctionDef`, not Rust implemen
 
 Function-call fingerprints include the exact function definition plus the typed argument expressions. Backend adapters may claim exact support only when the backend operation reproduces that function definition. Mapping a DOL function to a similarly named SQL/BSON/database function is insufficient if collation, Unicode, timezone, null, missing, or rounding behavior differs.
 
-All Phase-2 functions are deterministic, including custom primitive functions implemented through `SemanticFunction`. The portable identity is still only `FunctionDef`, while local validation/evaluation dispatch is excluded from fingerprints. Custom functions cannot claim the reserved `dol/` namespace, and expressions reject conflicting definitions that claim the same function key/version. Contextual/volatile function classes are reserved for a future explicit evaluation-context contract so clock/random/session-dependent operations cannot be smuggled into Phase 2 or misclassified as constant-foldable.
+All current functions are deterministic, including custom primitive functions
+implemented through `SemanticFunction`. The portable identity is still only
+`FunctionDef`, while local validation/evaluation dispatch is excluded from
+fingerprints. Custom functions cannot claim the reserved `dol/` namespace, and
+expressions reject conflicting definitions that claim the same function
+key/version. Contextual/volatile function classes are reserved for a future
+explicit evaluation-context contract so clock/random/session-dependent
+operations cannot be smuggled into the language or misclassified as
+constant-foldable.
 
 ## Type-owned expression API policy
 
@@ -95,13 +104,13 @@ Default DOL string semantics are locale-independent and do not perform Unicode n
 `Date`, `Time`, `LocalDateTime`, `Instant`, and `Duration` remain distinct semantic domains. Local date/time values never acquire an implicit timezone. Absolute instants are not silently converted to local calendar values. The initial function set mirrors portable methods of the `time` value types where the meaning is backend-independent and exact. `Date::month` and `Date::weekday` retain `time::Month` and `time::Weekday` as first-class semantic result types rather than flattening them to generic integers.
 
 
-## Phase 3 pipeline rules
+## Pipeline rules
 
 The initial pipeline layer locks these semantics:
 
 - `Pipeline<T>` is symbolic/declarative and contains no materialized rows; `DataSet<T>` is the concrete/materialized counterpart.
 - A model source is semantic rather than physical. Storage/engine selection is not part of `ModelDef` or `Pipeline::<M>::from_model()`.
-- Filters consume `Expr<Truth>` and retain only `Truth::True`, inheriting the normative Phase-2 truth semantics.
+- Filters consume `Expr<Truth>` and retain only `Truth::True`, inheriting the normative expression truth semantics.
 - Sort keys require explicit DOL ordering semantics on their exact `TypeDef`; backend-native ordering is not sufficient by name alone.
 - `distinct` requires DOL equality semantics for the complete output shape.
 - Projection changes the semantic output shape and closes previous model-field scopes rather than pretending projected-away fields remain available. Scalar, tuple, and named-record projections are one logical `Project`; tuple element order is semantic while record declaration order is not.
@@ -112,17 +121,17 @@ The initial pipeline layer locks these semantics:
 - Set operands must have identical semantic output shapes. Duplicate-eliminating set operations require equality semantics recursively; `union_all` does not.
 - Offset/limit are logical result semantics and do not imply any particular backend pagination mechanism.
 - Logical-plan fingerprints depend on canonical source-model definitions, normalized expressions plus canonical source-occurrence binding, logical operations, and output shape. Alias strings, local plan/expression IDs, and physical execution details are non-semantic.
-- Pipeline planning is resource-bounded before lowering and reuses Phase-2 expression limits for every retained expression.
+- Pipeline planning is resource-bounded before lowering and reuses the expression limits for every retained expression.
 - Existential subqueries use ordinary pipeline filters. Correlation is inferred when a nested filter references fields supplied by an enclosing pipeline; `exists()` is the boundary that supplies and validates those outer scopes. Other nested stage kinds do not implicitly capture enclosing fields in the initial contract.
 - Unnesting expands list-valued pipeline outputs in list order. Null/missing nullable lists produce zero rows, and unnesting does not reopen model scopes closed by projection.
 - Window partition keys require stable equality/key semantics. Window order keys require stable ordering/equality/key semantics. `row_number` and bounded/current-row aggregate frames require a provable total order; the initial proof requires one model scope, rowset-preserved source-identity uniqueness, and all declared identity fields directly present in ordering. `union` / `union_all` invalidate that uniqueness proof.
 - Aggregate windows require an explicit row-count frame and preserve exact numeric/nullability rules; there is no backend-default frame.
-- Logical optimizer rewrites are opt-in and proof-conservative. Rewritten plans preserve the original canonical semantic fingerprint; Slice 4 only eliminates identity offset-zero slices and repeated distinct operations.
+- Logical optimizer rewrites are opt-in and proof-conservative. Rewritten plans preserve the original canonical semantic fingerprint; current rewrites only eliminate identity offset-zero slices and repeated distinct operations.
 
 
-## Stage E write and materialized-data rules
+## Write and materialized-data rules
 
-- `DataSet<T>` contains concrete values and provides the normative Stage-E eager oracle. `DataSet::try_new` validates exact model semantics plus model-local identity/unique constraints; `DataSet::new` remains a general collection constructor.
+- `DataSet<T>` contains concrete values and provides the normative eager oracle. `DataSet::try_new` validates exact model semantics plus model-local identity/unique constraints; `DataSet::new` remains a general collection constructor.
 - `Update<M, Unscoped>` and `Delete<M, Unscoped>` are intentionally non-executable. A filter produces `Scoped`; `.all()` produces the distinct `AllAcknowledged` typestate.
 - Update assignments are simultaneous: every right-hand expression reads the pre-update row. Assignment authoring order is non-semantic; duplicate assignment of one field is rejected.
 - Write filters retain/select only `Truth::True`; `False` and `Unknown` do not target the row.

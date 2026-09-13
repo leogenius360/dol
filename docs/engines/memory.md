@@ -1,6 +1,8 @@
-# Phase 5 — Engine SPI and Memory Reference Execution
+# Memory Reference Engine
 
-Stage F begins physical execution only after the semantic language, pipeline DAG, writes, and eager `DataSet<T>` oracle are locked.
+The memory adapter is DOL's exact executable reference for the semantic language,
+pipeline DAG, writes, and eager `DataSet<T>` oracle. The engine-neutral execution
+contract lives in the [engine SPI](../design/engine-spi.md).
 
 ## Boundary
 
@@ -16,9 +18,9 @@ DataSet<T>
 
 `Engine`, `LogicalPlan`, `ExecutionRequest`, `DataStream`, and `LogicalWrite` are execution/support contracts. They do not compete with `Pipeline<T>` as an application data-computation abstraction.
 
-## Slice 1 foundation
+## Foundation
 
-The first memory slice establishes the execution architecture before implementing every operator:
+The memory engine is built on these execution guarantees:
 
 1. exact capability claims;
 2. remote-only placement and bounded hybrid analysis;
@@ -26,7 +28,7 @@ The first memory slice establishes the execution architecture before implementin
 4. pull-based result streaming;
 5. bounded execution;
 6. exact source/filter/project/unnest/slice execution;
-7. exact Stage-E writes;
+7. exact writes;
 8. serializable multi-write transactions;
 9. cross-model referential-integrity validation;
 10. reusable conformance helpers.
@@ -68,7 +70,7 @@ Typed writes lower to `LogicalWrite`. A non-transactional memory write snapshots
 table, applies the candidate mutation, validates the complete registry, and restores the target
 table on failure. This avoids cloning unrelated tables while preserving atomic publication.
 
-This preserves Stage-E semantics:
+This preserves the write semantics:
 
 - simultaneous updates;
 - three-valued write filters;
@@ -84,13 +86,14 @@ Rollback simply discards the private snapshot. Commit validates the candidate an
 
 ## Referential integrity
 
-Stage E intentionally could not enforce a relation from one isolated `DataSet<M>`. Stage F moves this check to the multi-model engine context.
+One isolated `DataSet<M>` cannot enforce a relation across models. The memory
+engine performs this check in its multi-model context.
 
 A concrete non-null/non-missing source reference tuple must match one target tuple exactly. Null/missing source tuples are absent references. Model-set validation first confirms that reference widths, types, target fields, and uniqueness contracts are semantically valid.
 
-## Slice 2 completion
+## Complete exact surface
 
-Slice 2 completes the initial memory reference executor with exact semantics for:
+The memory reference executor supports exact semantics for:
 
 - inner, cross, left, right, and full joins, including null-extended scopes;
 - `union`, `union_all`, `intersect`, and `except` with DOL equality/multiplicity semantics;
@@ -99,6 +102,16 @@ Slice 2 completes the initial memory reference executor with exact semantics for
 - `row_number`, `rank`, `dense_rank`, and explicit ROWS-frame exact sums;
 - correlated `exists()` / `not_exists()` evaluated at the exact filter position with enclosing-scope bindings.
 
-The full Stage-F memory suite therefore covers capability honesty, typed parameters, all currently defined logical operators, pull-stream stability, execution limits, atomic writes, transactions, and runtime/static referential integrity. The engine advertises exact support only for semantics exercised by this reference suite.
+Materialization checks row, byte, and timeout limits before and during every
+stage. Cross joins preflight Cartesian cardinality, and transactions validate
+snapshot size before cloning and candidate size before publication.
 
-Stage F is considered complete at this boundary. Hybrid local-residual execution remains a later optimization capability rather than a prerequisite for semantic correctness; `RemoteOnly` continues to be the safe execution policy.
+The full memory suite therefore covers capability honesty, typed parameters,
+all currently defined logical operators, pull-stream stability, execution
+limits, atomic writes, transactions, and runtime/static referential integrity.
+The engine advertises exact support only for semantics exercised by this
+reference suite.
+
+Hybrid local-residual execution remains a later optimization capability rather
+than a prerequisite for semantic correctness; `RemoteOnly` continues to be the
+safe execution policy.

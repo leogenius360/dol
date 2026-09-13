@@ -1,6 +1,7 @@
-# Phase 4 — Writes and DataSet
+# Writes and `DataSet`
 
-Stage E locks DOL's first concrete/materialized execution semantics without turning `Pipeline<T>` into a mutation API.
+DOL's concrete/materialized execution semantics do not turn `Pipeline<T>` into
+a mutation API.
 
 ## Public model
 
@@ -53,7 +54,7 @@ Deletes use the same truth retention rule as pipeline/data-set filtering. `.all(
 
 ## Atomic local eager application
 
-`DataSet<T>` is the normative eager oracle for Stage E:
+`DataSet<T>` is the normative eager write oracle:
 
 ```rust
 let mut users = DataSet::try_new(initial_users)?;
@@ -94,7 +95,9 @@ Model validation covers:
 
 Constraint fingerprints are only indexing buckets. DOL confirms canonical tuple equality inside a fingerprint bucket, so a cryptographic hash collision cannot change identity/unique semantics.
 
-Cross-model referential integrity is intentionally not guessed by one isolated `DataSet<M>`; it requires a multi-model execution/transaction context and belongs with the engine/memory conformance work in Stage F.
+Cross-model referential integrity is intentionally not guessed by one isolated
+`DataSet<M>`; it requires a multi-model execution/transaction context and
+belongs to the engine and memory-conformance boundary.
 
 ## Write identity
 
@@ -110,6 +113,10 @@ Writes have canonical fingerprints over semantic meaning:
 
 Local IDs, authoring assignment order, current display names, and physical batch size are excluded.
 
-## Stage F connection
+## Engine connection
 
-Stage F Slice 1 now lowers these write contracts to engine-facing `LogicalWrite`, executes them atomically in `dol-memory`, binds typed parameters separately from write identity, exposes exact capability analysis, and validates multi-model references at the engine/transaction boundary. Remote database adapters remain later stages.
+The engine layer lowers these write contracts to `LogicalWrite`, executes them
+atomically in `dol-memory`, binds typed parameters separately from write
+identity, exposes exact capability analysis, and validates multi-model
+references at the engine/transaction boundary. Remote database adapters reject
+writes until they implement the same contract exactly.
